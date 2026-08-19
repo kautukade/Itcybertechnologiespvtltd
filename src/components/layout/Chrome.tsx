@@ -41,7 +41,8 @@ export function ScrollProgress() {
   );
 }
 
-/** Floating WhatsApp button — appears after scrolling, never covers content on mobile. */
+/** Floating WhatsApp button — appears after scrolling, never covers content on mobile.
+ *  Hidden entirely when the company WhatsApp number isn't configured. */
 export function WhatsAppFloat() {
   const [show, setShow] = useState(false);
   useEffect(() => {
@@ -51,9 +52,12 @@ export function WhatsAppFloat() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const link = waLink("Hi ITCYBER — I'd like to discuss AI automation for my business.");
+  if (!link) return null;
+
   return (
     <a
-      href={waLink("Hi ITCYBER — I'd like to discuss AI automation for my business.")}
+      href={link}
       target="_blank"
       rel="noreferrer"
       aria-label={site.cta.whatsapp}

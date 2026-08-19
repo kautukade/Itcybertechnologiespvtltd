@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { site } from "../../data/site";
+import { site, waLink, contactReady, emailReady } from "../../data/site";
 import { serviceCategories, industries } from "../../data/content";
 import { Logo, IconMail, IconWhatsApp, IconPin, IconArrowUpRight, IconArrow } from "../icons";
 
@@ -50,18 +50,22 @@ export default function Footer() {
               Custom AI agents, intelligent automation and business software — engineered around the systems your business already runs on.
             </p>
             <ul className="mt-6 space-y-2.5 text-[0.88rem]">
-              <li>
-                <a href={`mailto:${site.contact.email}`} className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
-                  <IconMail size={15} className="text-cyan-ic" />
-                  <span className="group-hover:underline underline-offset-4">{site.contact.email}</span>
-                </a>
-              </li>
-              <li>
-                <a href={`https://wa.me/${site.contact.whatsappNumber}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
-                  <IconWhatsApp size={15} className="text-signal" />
-                  <span className="group-hover:underline underline-offset-4">WhatsApp ITCYBER</span>
-                </a>
-              </li>
+              {emailReady && (
+                <li>
+                  <a href={`mailto:${site.contact.email}`} className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
+                    <IconMail size={15} className="text-cyan-ic" />
+                    <span className="group-hover:underline underline-offset-4">{site.contact.email}</span>
+                  </a>
+                </li>
+              )}
+              {contactReady && (
+                <li>
+                  <a href={waLink("Hi ITCYBER — I have a question about AI automation.") ?? undefined} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
+                    <IconWhatsApp size={15} className="text-signal" />
+                    <span className="group-hover:underline underline-offset-4">WhatsApp ITCYBER</span>
+                  </a>
+                </li>
+              )}
               <li className="inline-flex items-center gap-2.5 text-ink-300">
                 <IconPin size={15} className="text-brand-400" />
                 {site.contact.address}

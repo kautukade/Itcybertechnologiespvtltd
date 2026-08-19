@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { site, nav } from "../../data/site";
+import { useSiteSettings } from "../../lib/cms";
 import { serviceCategories, industries, functionSolutions } from "../../data/content";
 import { cn } from "../../lib/utils";
 import { Logo, IconMenu, IconClose, IconChevron, IconArrow, IconAgent, IconFlow, IconPlug, IconCode, IconArrowUpRight } from "../icons";
@@ -20,6 +21,9 @@ export default function Navbar() {
   const [openMega, setOpenMega] = useState<string | null>(null);
   const [announceHidden, setAnnounceHidden] = useState(false);
   const closeTimer = useRef<number | null>(null);
+  const settings = useSiteSettings();
+  const navOverride = (settings._navigation ?? {}) as { announcement?: Partial<{ show: boolean; text: string; cta: string; to: string }> };
+  const ann = { ...site.announcement, ...(navOverride.announcement ?? {}) };
   const location = useLocation();
 
   useEffect(() => {
@@ -41,6 +45,23 @@ export default function Navbar() {
     };
   }, [mobileOpen]);
 
+  /* keyboard: Escape closes menus; focus moves into the mobile sheet */
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileOpen(false);
+    document.addEventListener("keydown", onKey);
+    closeRef.current?.focus();
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!openMega) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenMega(null);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [openMega]);
+
   const enter = (key: string) => {
     if (closeTimer.current) window.clearTimeout(closeTimer.current);
     setOpenMega(key);
@@ -59,13 +80,13 @@ export default function Navbar() {
   return (
     <>
       {/* Announcement strip */}
-      {site.announcement.show && !announceHidden && (
+      {ann.show && !announceHidden && (
         <div className="relative z-50 bg-ink-800 border-b border-white/[.07]">
           <div className="wrap h-9 flex items-center justify-center gap-3 text-[0.78rem]">
             <span className="hidden sm:inline-flex w-1.5 h-1.5 bg-signal rounded-full anim-pulse-dot" aria-hidden />
-            <p className="text-ink-200 truncate">{site.announcement.text}</p>
-            <Link to={site.announcement.to} className="shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-cyan-ic hover:text-white transition-colors inline-flex items-center gap-1.5">
-              {site.announcement.cta} <IconArrow size={12} />
+            <p className="text-ink-200 truncate">{ann.text}</p>
+            <Link to={ann.to} className="shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-cyan-ic hover:text-white transition-colors inline-flex items-center gap-1.5">
+              {ann.cta} <IconArrow size={12} />
             </Link>
             <button onClick={() => setAnnounceHidden(true)} aria-label="Dismiss announcement" className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-white transition-colors p-1">
               <IconClose size={13} />
@@ -178,7 +199,7 @@ export default function Navbar() {
           <Link to="/" className="text-white" onClick={() => setMobileOpen(false)}>
             <Logo />
           </Link>
-          <button className="w-11 h-11 inline-flex items-center justify-center text-white hairline clip-corner" onClick={() => setMobileOpen(false)} aria-label="Close navigation menu">
+          <button ref={closeRef} className="w-11 h-11 inline-flex items-center justify-center text-white hairline clip-corner" onClick={() => setMobileOpen(false)} aria-label="Close navigation menu">
             <IconClose size={18} />
           </button>
         </div>
@@ -190,7 +211,7 @@ export default function Navbar() {
             { key: "company", label: "Company", links: [
               { label: "About", to: "/about", blurb: "How we think about AI" },
               { label: "Work", to: "/work", blurb: "Engagement blueprints" },
-              { label: "Careers", to: "/careers", blurb: "6 open roles" },
+              { label: "Careers", to: "/careers", blurb: "Live open roles" },
               { label: "Contact", to: "/contact", blurb: "Start a project" },
             ]},
           ].map((group) => {
@@ -236,6 +257,9 @@ export default function Navbar() {
           <Button to="/contact" className="w-full" size="lg" arrow onClick={() => setMobileOpen(false)}>
             {site.cta.consultation}
           </Button>
+          <Link to="/contact?mode=assessment" onClick={() => setMobileOpen(false)} className="mt-2.5 block text-center font-mono text-[0.68rem] uppercase tracking-[0.14em] text-cyan-ic hover:text-white transition-colors">
+            or run the 2-min automation assessment →
+          </Link>
           <p className="mt-3 text-center font-mono text-[0.68rem] uppercase tracking-[0.16em] text-ink-400">
             {site.contact.email} · {site.contact.hours}
           </p>
