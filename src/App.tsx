@@ -1,0 +1,156 @@
+import React, { Suspense, useEffect, useRef } from "react";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
+import Navbar from "./components/layout/Navbar";
+import Footer from "./components/layout/Footer";
+import { ScrollToTop, ScrollProgress, WhatsAppFloat, CursorGlow } from "./components/layout/Chrome";
+import { site } from "./data/site";
+
+const Home = React.lazy(() => import("./pages/Home"));
+const Services = React.lazy(() => import("./pages/Services"));
+const Agents = React.lazy(() => import("./pages/Agents"));
+const Automations = React.lazy(() => import("./pages/Automations"));
+const Software = React.lazy(() => import("./pages/Software"));
+const SolutionsIndex = React.lazy(() => import("./pages/Solutions"));
+const Work = React.lazy(() => import("./pages/Work"));
+const About = React.lazy(() => import("./pages/About"));
+const Careers = React.lazy(() => import("./pages/Careers"));
+const Contact = React.lazy(() => import("./pages/Contact"));
+const Legal = React.lazy(() => import("./pages/Legal"));
+const NotFound = React.lazy(() => import("./pages/NotFound"));
+
+/* Named export inside a lazy chunk: wrap in a small adapter. */
+const Industry = React.lazy(() => import("./pages/Solutions").then((m) => ({ default: m.IndustryPage })));
+
+/** Minimal inline fallback — never a jarring blank. */
+function PageFallback() {
+  return (
+    <div className="bg-ink-950 min-h-[60vh] flex items-center justify-center">
+      <div className="flex items-center gap-3 font-mono text-[0.72rem] uppercase tracking-[0.18em] text-ink-300">
+        <span className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" aria-hidden />
+        loading module…
+      </div>
+    </div>
+  );
+}
+
+/** Generic error boundary — branded, never cryptic. */
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError)
+      return (
+        <div className="bg-ink-950 min-h-[70vh] flex items-center justify-center px-6">
+          <div className="text-center max-w-md">
+            <p className="eyebrow text-rose-ic">system exception</p>
+            <h1 className="font-display font-bold text-white text-2xl mt-3 tracking-tight">A run failed — and we logged it.</h1>
+            <p className="text-ink-300 mt-3 text-sm leading-relaxed">
+              Something unexpected broke on this page. Reload usually fixes it; if it persists, email us at {site.contact.email}.
+            </p>
+            <button onClick={() => window.location.reload()} className="mt-6 bg-brand-500 text-white font-display font-semibold px-6 h-11 clip-corner hover:bg-brand-400 transition-colors">
+              Reload page
+            </button>
+          </div>
+        </div>
+      );
+    return this.props.children;
+  }
+}
+
+/** Per-page meta (title + description) for SEO. */
+function usePageMeta() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const map: Record<string, [string, string]> = {
+      "/": ["ITCYBER — AI Agents, Automation & Business Software", "Custom AI agents, intelligent automation, CRM & WhatsApp automation and business software for Indian businesses."],
+      "/services": ["Services — AI Agents, Automation, Integrations & Software | ITCYBER", "Four disciplines: AI agents, intelligent automation, business integrations and custom software — delivered as one system."],
+      "/ai-agents": ["AI Agents for Business — Sales, Support, Appointment & Custom | ITCYBER", "Custom AI agent development in India: sales, support, qualification, appointment and operations agents wired to your systems."],
+      "/automations": ["Business Process Automation — WhatsApp, CRM, Billing & More | ITCYBER", "Business automation in India: lead capture, CRM, follow-up, WhatsApp, invoicing and reporting automation with monitoring."],
+      "/custom-software": ["Custom AI Software, Dashboards & SaaS Development | ITCYBER", "Custom software development: internal tools, business dashboards, portals, SaaS products and AI-enabled web applications."],
+      "/solutions": ["Industry Solutions — Real Estate, Healthcare, Education & More | ITCYBER", "AI and automation playbooks for real estate, healthcare, education, e-commerce, agencies, professional services, startups and SMEs."],
+      "/work": ["Work — Engagement Blueprints & Case Studies | ITCYBER", "How ITCYBER systems are architected: engagement blueprints with challenge, solution architecture and integrations."],
+      "/about": ["About ITCYBER — Practical AI Systems for Real Businesses", "ITCYBER Technologies Pvt Ltd: business-first AI engineering. Our story, beliefs, mission and delivery method."],
+      "/careers": ["Careers at ITCYBER — AI Automation & Engineering Roles", "Join ITCYBER: open roles in AI automation engineering, full-stack development, solutions architecture and business development."],
+      "/contact": ["Contact ITCYBER — Book a Free AI Consultation", "Tell us what you want to automate. Free consultation, 2-minute automation assessment, WhatsApp and email."],
+      "/privacy-policy": ["Privacy Policy | ITCYBER", "How ITCYBER Technologies collects, uses and protects your data."],
+      "/terms-of-service": ["Terms of Service | ITCYBER", "Terms governing use of itcyber.in and ITCYBER services."],
+      "/cookie-policy": ["Cookie Policy | ITCYBER", "The minimal, honest cookies used on itcyber.in and how to control them."],
+    };
+    let entry = map[pathname];
+    if (!entry && pathname.startsWith("/solutions/"))
+      entry = [`${pathname.split("/")[2].replace(/-/g, " ")} — AI & Automation Solutions | ITCYBER`, "Industry-specific AI and automation playbook from ITCYBER."];
+    const [title, desc] = entry ?? ["ITCYBER — AI Agents, Automation & Business Software", site.description];
+    document.title = title;
+    let meta = document.querySelector('meta[name="description"]');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute("name", "description");
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute("content", desc);
+  }, [pathname]);
+}
+
+/** Fast page transitions keyed on route. */
+function PageShell() {
+  const location = useLocation();
+  const reduce = useReducedMotion();
+  const mainRef = useRef<HTMLElement>(null);
+
+  return (
+    <div className="relative z-[2] bg-ink-950">
+      <ScrollToTop />
+      <Navbar />
+      <motion.main
+        ref={mainRef}
+        key={location.pathname}
+        initial={reduce ? false : { opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <Suspense fallback={<PageFallback />}>
+          <Routes location={location}>
+            <Route path="/" element={<Home />} />
+            <Route path="/services" element={<Services />} />
+            <Route path="/ai-agents" element={<Agents />} />
+            <Route path="/automations" element={<Automations />} />
+            <Route path="/custom-software" element={<Software />} />
+            <Route path="/solutions" element={<SolutionsIndex />} />
+            <Route path="/solutions/:slug" element={<Industry />} />
+            <Route path="/work" element={<Work />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/careers" element={<Careers />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/privacy-policy" element={<Legal />} />
+            <Route path="/terms-of-service" element={<Legal />} />
+            <Route path="/cookie-policy" element={<Legal />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </motion.main>
+      <Footer />
+      <WhatsAppFloat />
+    </div>
+  );
+}
+
+function MetaBridge() {
+  usePageMeta();
+  return null;
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <BrowserRouter>
+        <MetaBridge />
+        <ScrollProgress />
+        <CursorGlow />
+        <PageShell />
+      </BrowserRouter>
+    </ErrorBoundary>
+  );
+}
