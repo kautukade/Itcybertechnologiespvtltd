@@ -29,8 +29,10 @@ npm run typecheck  # strict TS check
 ## Backend in one paragraph
 
 Public forms never insert into the database directly. They call the
-`submit-public` Edge Function (server-side validation, honeypot, timing check,
-per-email rate limit), which inserts with the service role. RLS blocks all
+`submit-contact`, `submit-assessment` and `submit-career` Edge Functions
+(server-side validation, honeypot, timing check, per-email rate limit,
+allow-listed CORS), which insert with the service role and fail closed if it
+is missing — never with the anon key. RLS blocks all
 anonymous reads of leads/applications and enforces role-based admin permissions
 (`super_admin`, `admin`, `editor`, `sales`, `hr`) server-side. Resumes upload to
 the **private** `career-resumes` bucket and are opened only via 5-minute signed
@@ -66,8 +68,8 @@ src/
   pages/        public routes
   types/        hand-maintained Supabase row types
 supabase/
-  schema.sql    all tables + RLS + storage + triggers
-  functions/submit-public/   validated public submission endpoint
+  migrations/   0001 schema+RLS+storage · 0002 lead notes · 0003 security hardening
+  functions/    submit-contact · submit-assessment · submit-career (validated submissions)
 ```
 
 ## Netlify deployment

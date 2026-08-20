@@ -1,126 +1,221 @@
-# ITCYBER — Supabase Backend Setup (beginner friendly)
+# Supabase Setup — ITCYBER (beginner-friendly)
 
-This guide takes you from an empty Supabase account to a fully working
-website + admin panel. Every step is done in a browser or terminal — no prior
-backend experience required.
+This guide takes a brand-new Supabase project to a fully working backend for
+**www.itcyber.in**: database + RLS, Auth, storage buckets, and the three Edge
+Functions that receive public form submissions.
 
-## 1. Create a Supabase project
+Everything you need is already in this repository:
 
-1. Go to https://supabase.com → **Start your project** (GitHub login works).
-2. **New project** → name it `itcyber` → set a strong database password (save it in a password manager) → pick a region close to India (e.g. Mumbai `ap-south-1`) → **Create**.
-3. Wait ~1 minute for provisioning.
+```
+supabase/
+  migrations/
+    0001_initial.sql                    ← all tables, RLS policies, storage buckets
+    0002_lead_notes_and_scheduling.sql  ← lead_notes, announcement scheduling
+    0003_security_hardening.sql         ← profile privilege-escalation guard,
+                                          resume bucket limits, strict upload paths
+  functions/
+    submit-contact/index.ts             ← validates + stores contact leads
+    submit-assessment/index.ts          ← validates + stores assessments
+    submit-career/index.ts              ← validates + stores job applications
+  seed.sql                              ← optional starter content for the CMS
+```
 
-## 2. Add environment variables
+> There is no `supabase/schema.sql` — the schema lives in the numbered files
+> under `supabase/migrations/` and must be applied **in numeric order**.
 
-1. In your local project, copy the example file:
-   ```bash
-   cp .env.example .env
-   ```
-2. In the Supabase dashboard open **Project Settings → API** and copy:
-   - **Project URL** → paste into `VITE_SUPABASE_URL`
-   - **anon public key** → paste into `VITE_SUPABASE_ANON_KEY`
-3. Optionally fill the contact variables (`VITE_WHATSAPP_NUMBER` etc.). If left
-   empty, phone/WhatsApp CTAs stay hidden until you configure them in
-   **Admin → Settings**.
-4. **Never** put the `service_role` key in `.env` or any frontend file. It only
-   ever lives inside Supabase Edge Functions.
+---
 
-## 3. Run the database migrations
+## 1. Create the Supabase project
 
-1. In the dashboard open **SQL Editor** → **New query**.
-2. Open `supabase/schema.sql` from this repo, copy the *entire* file, paste it
-   into the query box and press **Run**.
-   - This creates all 19 tables, RLS policies, storage buckets and triggers.
-3. (Optional CLI way: `supabase link --project-ref <ref>` then `supabase db push`.)
+1. Go to https://supabase.com → **New project**.
+2. Choose a name (e.g. `itcyber`), a strong database password (store it in a
+   password manager), and the region closest to your users.
+3. Wait for provisioning to finish.
 
-## 4. Configure Auth
+## 2. Find your Project URL and anon key
 
-1. **Authentication → Providers → Email**: keep it enabled. For your own admin
-   accounts, you can leave "Confirm email" on — you'll confirm via your inbox.
-2. No other providers are required.
+Dashboard → **Project Settings → API**:
 
-## 5. Create the first admin (safely)
+- **Project URL** → this is `VITE_SUPABASE_URL`
+- **`anon` / `publishable` key** → this is `VITE_SUPABASE_ANON_KEY`
 
-1. **Authentication → Users → Add user** → enter your email + a strong
-   password → check **Auto confirm user** → **Create user**.
-   The schema trigger automatically creates a `profiles` row (inactive editor).
-2. Open **SQL Editor** and run:
+The anon key is safe for the browser. The **`service_role` key is NOT** — it
+must never appear in frontend code or in Git. It is only used by Edge
+Functions, and Supabase injects it into functions automatically.
+
+## 3. Apply the migrations
+
+### Option A — Supabase CLI (recommended)
+
+```bash
+npm i -g supabase            # one-time
+supabase login               # opens a browser to authorize
+supabase link --project-ref <your-project-ref>   # ref is in the project URL
+supabase db push             # applies every migration in order
+```
+
+### Option B — SQL Editor
+
+1. Dashboard → **SQL Editor → New query**.
+2. Paste the full contents of `supabase/migrations/0001_initial.sql` → **Run**.
+3. Repeat for `0002_lead_notes_and_scheduling.sql`, then
+   `0003_security_hardening.sql` — **in this numeric order**.
+
+Verify: Dashboard → **Table Editor** should now show `profiles`, `services`,
+`ai_agents`, `automations`, `industries`, `case_studies`, `technologies`,
+`resources`, `jobs`, `contact_leads`, `lead_notes`, `automation_assessments`,
+`career_applications`, `media_library`, `seo_pages`, `legal_pages`,
+`announcements`, `social_links`, `admin_activity_logs`, `site_settings`.
+
+## 4. (Optional) Load starter content
+
+Run `supabase/seed.sql` in the SQL Editor. It inserts the services, agents,
+industries and jobs the public site ships with, so the CMS starts populated.
+Skip it if you plan to author content from the admin panel only.
+
+## 5. Configure Auth
+
+Dashboard → **Authentication → Providers → Email**:
+
+- Keep **Email** enabled.
+- For a private admin panel, disable self-sign-up (**Sign-ups → turn off**)
+  and add admins manually (step 8). This prevents strangers from creating
+  login accounts that would sit in `profiles` as inactive editors.
+
+## 6. Configure storage
+
+The migrations already create both buckets with the right visibility:
+
+| Bucket | Visibility | Purpose |
+| --- | --- | --- |
+| `site-media` | **Public** | Website images managed in Admin → Media |
+| `career-resumes` | **Private** | Applicant resumes — never public |
+
+`0003_security_hardening.sql` additionally sets, **server-side**:
+
+- `career-resumes` max file size: **5 MB** (`file_size_limit`)
+- `career-resumes` allowed MIME types: **PDF / DOC / DOCX** only
+- anonymous uploads restricted to paths matching
+  `pending/<uuid>.(pdf|doc|docx)` — no traversal, no arbitrary names, no
+  overwrites (anon has INSERT only; reads are via **signed URLs** by HR/admin)
+
+Check both buckets exist under **Storage** and that `career-resumes` shows
+*Private*.
+
+## 7. Deploy the Edge Functions
+
+```bash
+supabase functions deploy submit-contact    --no-verify-jwt
+supabase functions deploy submit-assessment --no-verify-jwt
+supabase functions deploy submit-career     --no-verify-jwt
+```
+
+(`--no-verify-jwt` is required because anonymous visitors submit these forms.)
+
+The functions read two settings:
+
+- `SUPABASE_SERVICE_ROLE_KEY` — injected by Supabase automatically. **The
+  functions fail closed (HTTP 503) if it is missing — they never fall back to
+  the anon key.**
+- `ALLOWED_ORIGINS` — *optional*. Comma-separated extra origins allowed by
+  CORS (e.g. a Netlify deploy-preview URL for testing):
+
+  ```bash
+  supabase secrets set ALLOWED_ORIGINS="https://deploy-preview-12--yoursite.netlify.app"
+  ```
+
+  Production CORS already allow-lists `https://www.itcyber.in` and
+  `https://itcyber.in`. Wildcards are not supported by design.
+
+## 8. Create the first admin (safely)
+
+Never put an admin password in code or docs.
+
+1. Dashboard → **Authentication → Users → Add user**.
+2. Enter the admin's email + password, tick **Auto confirm user**.
+   (The `handle_new_user` trigger creates their `profiles` row automatically.)
+3. In the **SQL Editor**, promote them:
+
    ```sql
    update public.profiles
-   set role = 'super_admin', active = true
-   where email = 'you@itcyber.in';
+      set role   = 'super_admin',
+          active = true
+    where email  = 'you@itcyber.in';   -- ← the email you just added
    ```
-   (Replace with your real email.) **Never commit this email/password anywhere.**
 
-## 6. Deploy the Edge Function (secure public submissions)
+Other roles: `admin`, `editor`, `sales`, `hr`. New accounts start
+`active = false` on purpose — a super_admin activates them from
+**Admin → Users**.
 
-You need the Supabase CLI (https://supabase.com/docs/guides/cli) and Docker
-running locally.
+## 9. Add frontend environment variables
 
-```bash
-supabase login
-supabase link --project-ref <your-project-ref>     # shown in Project Settings → General
-supabase secrets set SUBMIT_ALLOWED_ORIGIN=https://www.itcyber.in
-supabase functions deploy submit-public
+**Netlify** → Site configuration → **Environment variables** (never in Git):
+
+```
+VITE_SUPABASE_URL=<Project URL from step 2>
+VITE_SUPABASE_ANON_KEY=<anon key from step 2>
+VITE_SITE_URL=https://www.itcyber.in
 ```
 
-> Without the function deployed, public forms show an honest error instead of a
-> fake success — that's intentional.
+Locally, copy `.env.example` to `.env` and fill the same three values.
+`.gitignore` already blocks `.env`.
 
-## 7. Configure Storage
+## 10. Verify RLS is actually protecting data
 
-Buckets `site-media` (public) and `career-resumes` (private) are created by the
-schema. Nothing else to do — RLS already restricts:
-
-- `site-media`: anyone reads; only editor/admin/super_admin write.
-- `career-resumes`: anonymous uploads allowed **only** into `pending/*.pdf|doc|docx`;
-  only hr/admin/super_admin can read (via signed URLs) or delete.
-
-## 8. Verify RLS (anonymous users must not read private data)
-
-In **SQL Editor**, switch to the "anon" role check by running:
+In the SQL Editor, run each of these **as the anon role** (tick "Run as
+authenticated user: OFF" — or use the built-in *PostgREST anon* context).
+Every one must return a permission error or zero rows:
 
 ```sql
-set role anon;
-select count(*) from public.contact_leads;      -- must ERROR with permission denied
-select count(*) from public.career_applications;-- must ERROR with permission denied
-select count(*) from public.services where published = true; -- must succeed
-reset role;
+-- anonymous reads MUST fail / return nothing
+select * from public.contact_leads limit 1;
+select * from public.career_applications limit 1;
+select * from public.automation_assessments limit 1;
+select * from public.admin_activity_logs limit 1;
+
+-- anonymous writes MUST fail
+update public.services set published = true where slug = 'custom-software';
+delete from public.jobs;
 ```
 
-If the first two queries return rows instead of an error, re-run `schema.sql`.
+Then verify the **profile privilege guard** (migration 0003). Log in as a
+non-super_admin (e.g. an `editor`) and run against *their own* row:
 
-## 9. Run locally & test
-
-```bash
-npm install
-npm run dev
+```sql
+update public.profiles set active = true            where id = auth.uid(); -- MUST FAIL
+update public.profiles set role   = 'super_admin'   where id = auth.uid(); -- MUST FAIL
+update public.profiles set email  = 'x@x.io'        where id = auth.uid(); -- MUST FAIL
+update public.profiles set full_name = 'New Name'   where id = auth.uid(); -- allowed
 ```
 
-- **Public site** loads with bundled content (works even without Supabase).
-- **Contact page → Project Brief**: submit the form; it should show success
-  *only* after the Edge Function stored it. Verify in
-  **Supabase → Table Editor → contact_leads**.
-- **Assessment** (`/contact?mode=assessment`) and **Careers** (with a real
-  resume upload) write to `automation_assessments` / `career_applications`.
-- **Admin**: open `/itcyberadmin/login`, sign in with your admin user.
-  Explore Dashboard, Leads CRM, CMS screens, Settings (set the real WhatsApp
-  number there — the floating button appears on the public site afterwards).
+And as **super_admin**:
 
-## 10. Deploy to Netlify
+```sql
+update public.profiles set role = 'sales', active = true
+ where email = 'someone@itcyber.in';                                       -- allowed
+```
 
-1. Push the repo to GitHub.
-2. Netlify → **Add new site → Import project** → choose the repo.
-3. Build settings are auto-read from `netlify.toml` (`npm run build`, publish `dist`).
-4. **Site settings → Environment variables**: add every variable from `.env`
-   (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SITE_URL`, optional
-   contact + analytics vars).
-5. **Deploy site** → add your custom domain (`www.itcyber.in`) and enable HTTPS.
-6. Update `SUBMIT_ALLOWED_ORIGIN` if your production origin differs.
+Storage check: an anonymous 6 MB PDF upload to `career-resumes` must be
+rejected (size limit); a `.png` must be rejected (MIME); an upload to
+`resumes/evil.pdf` must be rejected (path policy).
 
-## Operational notes
+## 11. Smoke-test the forms
 
-- **Roles**: super_admin · admin · editor · sales · hr — enforced by RLS, not just the UI.
-- **New admins**: create the auth user (step 5.1), then activate + assign a role in **Admin → Users**.
-- **Audit trail**: every meaningful admin action lands in `admin_activity_logs`.
-- **Backups**: enable Supabase Point-in-Time Recovery for production.
+1. Deploy the frontend (see `NETLIFY_DEPLOYMENT.md`).
+2. Submit the contact form, the assessment wizard, and a job application
+   (with a small PDF resume).
+3. In the Supabase Table Editor confirm rows appear in `contact_leads`,
+   `automation_assessments` and `career_applications` — and the resume object
+   under `career-resumes/pending/`.
+4. Sign in at `/itcyberadmin/login` and verify the new lead appears on the
+   dashboard.
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| Forms show "submission service isn't reachable" | Frontend env vars missing — step 9 |
+| Forms fail with 503 | Function can't see the service-role key — redeploy after `supabase secrets set` |
+| CORS error in browser console | Origin not allow-listed — set `ALLOWED_ORIGINS` (step 7) |
+| "row-level security policy violation" in admin | Profile is inactive or role missing — step 8 |
+| Resume upload rejected | File must be PDF/DOC/DOCX, ≤ 5 MB, auto-named under `pending/` |
