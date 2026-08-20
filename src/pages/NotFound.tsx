@@ -40,8 +40,8 @@ export default function NotFound() {
             This workflow reached the <span className="text-rose-ic">wrong node.</span>
           </h1>
           <p className="text-ink-200 mt-4 max-w-lg leading-relaxed">
-            The page you requested doesn't exist — but unlike an unmonitored automation, we noticed immediately.
-            Let's route you somewhere that does.
+            The page you requested doesn't exist. Let's route you somewhere that does —
+            the rest of the system is exactly where you left it.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button to="/" arrow>Return Home</Button>
@@ -49,7 +49,7 @@ export default function NotFound() {
             <Button to="/contact" variant="ghost">Contact ITCYBER</Button>
           </div>
           <p className="mt-8 font-mono text-[0.68rem] uppercase tracking-[0.14em] text-ink-500">
-            run log: GET {typeof window !== "undefined" ? window.location.pathname : ""} → 404 · escalated to human ✓
+            route: GET {typeof window !== "undefined" ? window.location.pathname : ""} → 404 · nothing was lost
           </p>
         </div>
       </div>

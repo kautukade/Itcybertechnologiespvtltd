@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /itcyberadmin
+Disallow: /itcyberadmin/
 
 Sitemap: https://www.itcyber.in/sitemap.xml

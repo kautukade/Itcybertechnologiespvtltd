@@ -155,7 +155,7 @@ export default function Automations() {
         <div className="wrap grid lg:grid-cols-3 gap-4">
           {[
             { t: "Parallel before replacement", d: "New automations run beside your current process until the team trusts them. No big-bang cutovers, no hostage situations." },
-            { t: "Monitored like production", d: "Every run is logged, timed and alerted on. A failed step pages an engineer before it becomes your problem." },
+            { t: "Monitored like production", d: "Runs are logged and timed with alerts configured from day one, so a failed step surfaces immediately instead of silently compounding." },
             { t: "Owned by you", d: "Workflows are documented and handed over. You're never locked into us to keep your own operations running." },
           ].map((g, i) => (
             <Reveal key={g.t} delay={i * 0.08}>

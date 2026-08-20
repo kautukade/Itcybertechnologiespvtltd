@@ -40,7 +40,11 @@ export default function Agents() {
             <Reveal delay={0.3}>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button to="/contact" arrow>Build a Custom Agent</Button>
-                <Button href={site.contact.phoneHref} variant="ghost">Talk to an AI Engineer</Button>
+                {site.contact.phoneHref ? (
+                  <Button href={site.contact.phoneHref} variant="ghost">Talk to an AI Engineer</Button>
+                ) : (
+                  <Button to="/contact" variant="ghost">Talk to an AI Engineer</Button>
+                )}
               </div>
             </Reveal>
           </div>
@@ -161,7 +165,7 @@ export default function Agents() {
               tone="paper"
               eyebrow="agent anatomy"
               title={<>Trust comes from <span className="text-brand-600">visibility.</span></>}
-              lead="You can watch every agent think. Each decision is logged with its inputs, the rule or model step used, the systems touched and the result — exportable, auditable, yours."
+              lead="Every agent ships with a decision trace: detected intent, confidence, policy checks, tool calls, actions taken and the result — without exposing private model reasoning. Exportable, auditable, yours."
             />
             <Reveal delay={0.2}>
               <ul className="mt-8 space-y-3">

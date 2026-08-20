@@ -1,6 +1,11 @@
-# ITCYBER Technologies Pvt Ltd — Website
+# ITCYBER Technologies Pvt Ltd — Website + Admin Platform
 
-Premium marketing site for **ITCYBER Technologies Pvt Ltd** — custom AI agents, intelligent business automation and custom software. Built with React 18, TypeScript, Vite, Tailwind CSS v4, Framer Motion and React Router.
+Premium marketing site **and** secure admin/CMS platform for ITCYBER Technologies
+Pvt Ltd — custom AI agents, intelligent business automation and custom software.
+
+**Stack:** React 18 · TypeScript (strict) · Vite · Tailwind CSS v4 · Framer Motion ·
+React Router · React Three Fiber (adaptive 3D hero) · Supabase (Auth, Postgres,
+Storage, Edge Functions, RLS) · Netlify.
 
 ## Run locally
 
@@ -9,43 +14,75 @@ npm install
 npm run dev
 ```
 
-Open the printed local URL (default `http://localhost:5173`).
+The public site works **with or without** Supabase:
+- Without env vars → bundled content, forms show an honest "service unavailable" error.
+- With env vars (see `.env.example` + `SUPABASE_SETUP.md`) → live CMS content,
+  real form storage, admin panel enabled.
 
 ## Production build
 
 ```bash
-npm run build
+npm run build      # emits dist/
+npm run typecheck  # strict TS check
 ```
 
-The optimized site is emitted to `dist/`.
+## Backend in one paragraph
+
+Public forms never insert into the database directly. They call the
+`submit-public` Edge Function (server-side validation, honeypot, timing check,
+per-email rate limit), which inserts with the service role. RLS blocks all
+anonymous reads of leads/applications and enforces role-based admin permissions
+(`super_admin`, `admin`, `editor`, `sales`, `hr`) server-side. Resumes upload to
+the **private** `career-resumes` bucket and are opened only via 5-minute signed
+URLs. See **SUPABASE_SETUP.md** for the full beginner walkthrough
+(schema → auth → first admin → functions → storage → RLS verification → deploy).
+
+## Admin panel
+
+Sign in at `/itcyberadmin/login` (never linked from the public site, excluded in
+`robots.txt`, `noindex`). Includes:
+
+| Area | Capabilities |
+| --- | --- |
+| Dashboard | Real-time lead counts, 14-day chart, status funnel, sources, activity |
+| Leads | Mini-CRM: search, filters, pagination, drawer, status/assign/notes, CSV export |
+| Assessments | Review + stage the public automation assessment submissions |
+| Services / AI Agents / Automations / Industries / Work / Resources | Full CMS (create, edit, publish, reorder, JSON fields) |
+| Jobs / Applications | Role CRUD, open/close applications, stage pipeline, signed resume URLs, CSV |
+| Media | Upload/preview/alt-text/replace/delete in the `site-media` bucket |
+| SEO | Per-route title/description/canonical/OG/robots/schema overrides |
+| Navigation / Pages | Announcement + homepage hero copy overrides |
+| Settings | Company contact details (warns when incomplete — public CTAs stay hidden) |
+| Users / Audit Logs | Role + activation management (super_admin), full audit trail |
+
+## Project structure
+
+```
+src/
+  admin/        admin panel (layout, CRM, CMS engine, system screens)
+  components/   layout, ui kit, custom icons, workflow demos, 3D scene
+  data/         centralized content + site config (fallback when CMS offline)
+  lib/          supabase client, leads API, auth/roles, cms hooks, seo, motion
+  pages/        public routes
+  types/        hand-maintained Supabase row types
+supabase/
+  schema.sql    all tables + RLS + storage + triggers
+  functions/submit-public/   validated public submission endpoint
+```
 
 ## Netlify deployment
 
-1. Push this repository to GitHub / GitLab.
-2. In Netlify → **Add new site → Import an existing project**, choose the repo.
-3. Build settings (auto-detected from `netlify.toml`):
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-4. Click **Deploy site**. The included `netlify.toml` already handles SPA redirects (`/* → /index.html`) and asset caching.
-5. Point your domain (e.g. `www.itcyber.in`) via **Domain settings → Add custom domain** and enable HTTPS.
+1. Push to GitHub → Netlify **Import project** (settings auto-read from `netlify.toml`).
+2. Add the environment variables from `.env.example` under Site settings.
+3. Deploy; attach `www.itcyber.in` and enable HTTPS.
+Manual option: `npm run build` then drag `dist/` to https://app.netlify.com/drop.
+`netlify.toml` already configures SPA redirects, asset caching and security
+headers (CSP, HSTS, nosniff, frame denial, referrer + permissions policy).
 
-Manual deploys also work: run `npm run build` and drag the `dist/` folder onto https://app.netlify.com/drop.
+## Rules this codebase follows
 
-## Where content lives
-
-All business content is centralized (admin-ready, no hard-coded strings scattered in components):
-
-| File | Owns |
-| --- | --- |
-| `src/data/site.ts` | Company name, emails, phone/WhatsApp number, socials, nav structure, CTA labels, legal copy settings |
-| `src/data/content.ts` | Services, AI agents, automations, integrations, industries, function solutions, workflow demo scenarios, process, security pillars, jobs, resources |
-
-**To change the WhatsApp number or email, edit `src/data/site.ts` only.**
-
-## Backend / forms
-
-Contact, assessment and job-application forms perform client-side validation and submit through `src/lib/leads.ts`, which currently simulates a request and is pre-wired for Supabase (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` in `.env` — never commit service-role keys). Analytics hooks read optional env IDs (`VITE_GA_ID`, `VITE_META_PIXEL_ID`, `VITE_LINKEDIN_ID`) and stay inert when unset.
-
-## Routes
-
-`/` home · `/services` · `/ai-agents` · `/automations` · `/custom-software` · `/solutions` + `/solutions/:industry` · `/work` · `/about` · `/careers` · `/contact` · `/privacy-policy` · `/terms-of-service` · `/cookie-policy` · `*` → 404.
+- No fake submissions: success states only after the backend confirms storage.
+- No placeholder contact details shown publicly — unconfigured channels are hidden.
+- No invented clients, metrics, testimonials or certifications; `case_type`
+  distinguishes `reference` architectures from verified `real` case studies.
+- Service-role keys never appear in frontend code.

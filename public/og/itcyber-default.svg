@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="ITCYBER — AI Agents, Automation and Business Software">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#05080F"/>
+      <stop offset="1" stop-color="#0B1222"/>
+    </linearGradient>
+    <linearGradient id="acc" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3E7BFF"/>
+      <stop offset="1" stop-color="#56D9FF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.4" r="0.7">
+      <stop offset="0" stop-color="#3E7BFF" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#3E7BFF" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#16233F" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.5"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <!-- network -->
+  <g stroke="#27406F" stroke-width="2">
+    <path d="M820 190 L980 130 M820 190 L1050 260 M820 190 L930 330 M820 190 L700 300 M980 130 L1050 260 M930 330 L1050 260 M700 300 L930 330"/>
+  </g>
+  <g>
+    <circle cx="820" cy="190" r="34" fill="#0B1222" stroke="url(#acc)" stroke-width="3"/>
+    <circle cx="980" cy="130" r="12" fill="#56D9FF"/>
+    <circle cx="1050" cy="260" r="12" fill="#3DDC97"/>
+    <circle cx="930" cy="330" r="12" fill="#FFB454"/>
+    <circle cx="700" cy="300" r="12" fill="#8FB4FF"/>
+    <circle cx="820" cy="190" r="10" fill="#56D9FF"/>
+  </g>
+  <path d="M60 545 H1140" stroke="url(#acc)" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+
+  <!-- wordmark -->
+  <text x="70" y="270" font-family="'Space Grotesk', 'Segoe UI', Arial, sans-serif" font-size="92" font-weight="700" fill="#FFFFFF" letter-spacing="2">ITCYBER<tspan fill="#56D9FF">.</tspan></text>
+  <text x="74" y="330" font-family="'IBM Plex Mono', 'Courier New', monospace" font-size="26" fill="#8FB4FF" letter-spacing="3">AI AGENTS · AUTOMATION · BUSINESS SOFTWARE</text>
+  <text x="74" y="400" font-family="'IBM Plex Sans', 'Segoe UI', Arial, sans-serif" font-size="30" fill="#A9B7D0">Custom AI systems engineered around the tools</text>
+  <text x="74" y="442" font-family="'IBM Plex Sans', 'Segoe UI', Arial, sans-serif" font-size="30" fill="#A9B7D0">your business already runs on.</text>
+
+  <text x="74" y="520" font-family="'IBM Plex Mono', 'Courier New', monospace" font-size="20" fill="#5F7396" letter-spacing="2">www.itcyber.in</text>
+</svg>

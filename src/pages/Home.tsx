@@ -12,7 +12,10 @@ import {
   IconArrow, IconArrowUpRight, IconAgent, IconFlow, IconCode, IconPlug, IconShield,
   IconCheck, IconCompass, IconBlueprint, IconRoute, IconLayers, IconGrowth, IconSpark, IconPulse,
 } from "../components/icons";
-import OpsNetwork from "../components/workflows/OpsNetwork";
+import HeroVisual from "../components/sections/HeroVisual";
+import EcosystemVisual from "../components/sections/EcosystemVisual";
+import { usePageMeta, orgSchema } from "../lib/seo";
+import { useSiteSettings } from "../lib/cms";
 import WorkflowRunner from "../components/workflows/WorkflowRunner";
 import OpsDashboard from "../components/workflows/OpsDashboard";
 import AgentMicroDemo from "../components/sections/AgentMicroDemo";
@@ -20,6 +23,14 @@ import AgentMicroDemo from "../components/sections/AgentMicroDemo";
 /* ---------------------------------- HERO ----------------------------------- */
 
 function Hero() {
+  const settings = useSiteSettings();
+  const hp = (settings._homepage ?? {}) as { sub?: string; cta?: string };
+  usePageMeta({
+    title: "ITCYBER — AI Agents, Business Automation & Custom Software",
+    description: site.description,
+    path: "/",
+    schema: orgSchema,
+  });
   return (
     <section className="relative bg-ink-950 text-ink-100 overflow-hidden noise">
       <div className="absolute inset-0 grid-bg" aria-hidden />
@@ -52,15 +63,17 @@ function Hero() {
             </h1>
             <Reveal delay={0.25}>
               <p className="mt-6 max-w-xl text-[clamp(1rem,1.5vw,1.15rem)] leading-relaxed text-ink-200">
-                ITCYBER designs and deploys <strong className="text-white font-semibold">custom AI agents</strong>,{" "}
+                {hp.sub ?? (
+                <>ITCYBER designs and deploys <strong className="text-white font-semibold">custom AI agents</strong>,{" "}
                 <strong className="text-white font-semibold">intelligent automations</strong> and{" "}
                 <strong className="text-white font-semibold">business software</strong> that work across your existing
-                systems — so your team moves faster, repetitive work disappears and operations scale.
+                systems — so your team moves faster, repetitive work disappears and operations scale.</>
+                )}
               </p>
             </Reveal>
             <Reveal delay={0.35}>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Button to="/contact" size="lg" arrow>{site.cta.consultationLong}</Button>
+                <Button to="/contact" size="lg" arrow>{hp.cta ?? site.cta.consultationLong}</Button>
                 <Button to="/solutions" variant="ghost" size="lg">Explore Our Solutions</Button>
               </div>
               <Link to="/#demo" className="group mt-5 inline-flex items-center gap-2 font-mono text-[0.74rem] uppercase tracking-[0.16em] text-ink-300 hover:text-cyan-ic transition-colors">
@@ -72,7 +85,7 @@ function Hero() {
             <Reveal delay={0.45}>
               <dl className="mt-10 grid grid-cols-3 gap-4 max-w-md">
                 {[
-                  { v: "<60s", k: "first response to any lead" },
+                  { v: "Seconds", k: "lead response, by design" },
                   { v: "24×7", k: "agents working your systems" },
                   { v: "1 team", k: "AI + automation + software" },
                 ].map((s) => (
@@ -87,7 +100,7 @@ function Hero() {
           </div>
 
           <Reveal delay={0.2} y={34} className="relative">
-            <OpsNetwork />
+            <HeroVisual />
           </Reveal>
         </div>
       </div>
@@ -348,7 +361,7 @@ function Capabilities() {
     /* dashboard mock */
     <div key="v2"><OpsDashboard /></div>,
     /* integrations orbit */
-    <div key="v3" className="py-4"><IntegrationOrbit /></div>,
+    <div key="v3" className="py-4"><EcosystemVisual /></div>,
   ];
 
   return (
@@ -803,7 +816,7 @@ export default function Home() {
           <SectionHead
             eyebrow="interactive demo"
             title={<>Watch an AI workflow <span className="text-brand-400">run.</span></>}
-            lead="Pick a scenario. Every step below is the kind of run our systems execute for real businesses, thousands of times a day."
+            lead="Pick a scenario. Every step below mirrors a run our systems execute for real businesses."
           />
           <Reveal delay={0.15}>
             <div className="mt-10">

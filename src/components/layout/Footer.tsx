@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
-import { site } from "../../data/site";
+import { site, waLink, contactReady, emailReady } from "../../data/site";
 import { serviceCategories, industries } from "../../data/content";
+import { useCollection } from "../../lib/cms";
+import type { SocialLinkRow } from "../../types/db";
 import { Logo, IconMail, IconWhatsApp, IconPin, IconArrowUpRight, IconArrow } from "../icons";
 
 const cols: { title: string; links: { label: string; to: string }[] }[] = [
@@ -34,6 +36,32 @@ const cols: { title: string; links: { label: string; to: string }[] }[] = [
   },
 ];
 
+/** Social links: live from the `social_links` table when configured,
+ *  otherwise the static defaults. Only renders links with a real href. */
+function FooterSocials() {
+  const { data } = useCollection("social_links", [] as SocialLinkRow[]);
+  const live = (data ?? []).filter((s) => !!s.href);
+  const links = live.length
+    ? live.map((s) => ({ label: s.label, href: s.href }))
+    : site.socials;
+  if (!links.length) return null;
+  return (
+    <div className="mt-6 flex gap-2">
+      {links.map((s) => (
+        <a
+          key={s.label}
+          href={s.href}
+          target="_blank"
+          rel="noreferrer"
+          className="h-9 px-3 inline-flex items-center gap-1.5 font-mono text-[0.66rem] uppercase tracking-[0.12em] hairline text-ink-200 hover:text-white hover:bg-white/[.06] transition-colors clip-corner"
+        >
+          {s.label} <IconArrowUpRight size={11} />
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export default function Footer() {
   return (
     <footer className="relative bg-ink-950 text-ink-200 border-t border-white/[.07] overflow-hidden">
@@ -50,36 +78,28 @@ export default function Footer() {
               Custom AI agents, intelligent automation and business software — engineered around the systems your business already runs on.
             </p>
             <ul className="mt-6 space-y-2.5 text-[0.88rem]">
-              <li>
-                <a href={`mailto:${site.contact.email}`} className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
-                  <IconMail size={15} className="text-cyan-ic" />
-                  <span className="group-hover:underline underline-offset-4">{site.contact.email}</span>
-                </a>
-              </li>
-              <li>
-                <a href={`https://wa.me/${site.contact.whatsappNumber}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
-                  <IconWhatsApp size={15} className="text-signal" />
-                  <span className="group-hover:underline underline-offset-4">WhatsApp ITCYBER</span>
-                </a>
-              </li>
+              {emailReady && (
+                <li>
+                  <a href={`mailto:${site.contact.email}`} className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
+                    <IconMail size={15} className="text-cyan-ic" />
+                    <span className="group-hover:underline underline-offset-4">{site.contact.email}</span>
+                  </a>
+                </li>
+              )}
+              {contactReady && (
+                <li>
+                  <a href={waLink("Hi ITCYBER — I have a question about AI automation.") ?? undefined} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
+                    <IconWhatsApp size={15} className="text-signal" />
+                    <span className="group-hover:underline underline-offset-4">WhatsApp ITCYBER</span>
+                  </a>
+                </li>
+              )}
               <li className="inline-flex items-center gap-2.5 text-ink-300">
                 <IconPin size={15} className="text-brand-400" />
                 {site.contact.address}
               </li>
             </ul>
-            <div className="mt-6 flex gap-2">
-              {site.socials.map((s) => (
-                <a
-                  key={s.label}
-                  href={s.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="h-9 px-3 inline-flex items-center gap-1.5 font-mono text-[0.66rem] uppercase tracking-[0.12em] hairline text-ink-200 hover:text-white hover:bg-white/[.06] transition-colors clip-corner"
-                >
-                  {s.label} <IconArrowUpRight size={11} />
-                </a>
-              ))}
-            </div>
+            <FooterSocials />
           </div>
 
           {cols.map((c) => (
