@@ -1,6 +1,6 @@
 /**
- * Hero visual: full 3D AI Operations Core on capable devices,
- * the animated SVG operations network everywhere else.
+ * Hero visual: the cinematic 3D AI Operations Core on capable devices,
+ * crossfaded in over the animated SVG operations network.
  *
  * Tier policy (deliberate):
  *  - FLAT   → prefers-reduced-motion, no WebGL, or very small phones (<520px)
@@ -9,9 +9,12 @@
  * Touch capability alone ("ontouchstart") NEVER disables 3D — touch-enabled
  * Windows laptops are desktops. Weak hardware downgrades to MEDIUM, not FLAT.
  *
- * The 3D chunk is lazy-loaded behind Suspense (SVG network is the fallback so
- * the hero is never empty), pauses off-screen, and a boundary + context-loss
- * listener swaps back to the SVG network if WebGL fails at runtime.
+ * Rendering model — the hero can never be blank and never shifts layout:
+ *  1. The animated SVG network renders immediately as the base layer.
+ *  2. The lazy-loaded 3D chunk mounts on top with opacity 0.
+ *  3. After the first real WebGL frame, the canvas crossfades to opacity 1.
+ *  4. On error-boundary trip or context loss the canvas unmounts and the
+ *     SVG base layer simply remains.
  */
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import OpsNetwork from "../workflows/OpsNetwork";
@@ -34,7 +37,7 @@ export function detectVisualTier(): VisualTier {
     return "flat";
   }
   const width = Math.max(window.innerWidth || 0, document.documentElement.clientWidth || 0);
-  if (width < 520) return "flat"; // very small phones → optimized SVG workflow
+  if (width < 520) return "flat"; // very small phones → the premium animated SVG pipeline
   const nav = navigator as Navigator & { deviceMemory?: number };
   const mem = nav.deviceMemory ?? 8;
   const cores = navigator.hardwareConcurrency ?? 8;
@@ -43,14 +46,14 @@ export function detectVisualTier(): VisualTier {
   return "high";
 }
 
-/** Catches WebGL/render failures in the R3F tree → SVG network instead of a blank hero. */
-class SceneBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+/** Catches WebGL/render failures in the R3F tree → SVG base layer stays visible. */
+class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state: { failed: boolean } = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
   }
   render() {
-    return this.state.failed ? this.props.fallback : this.props.children;
+    return this.state.failed ? null : this.props.children;
   }
 }
 
@@ -70,6 +73,7 @@ export default function HeroVisual() {
   const [inView, setInView] = useState(true);
   const [eventIdx, setEventIdx] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -88,37 +92,42 @@ export default function HeroVisual() {
     return () => clearInterval(id);
   }, [reduce]);
 
-  const use3D = tier !== "flat" && !failed;
-
-  const svgFallback = (
-    <div className="absolute inset-0 z-0">
-      <OpsNetwork />
-    </div>
-  );
+  const attempt3D = tier !== "flat" && !failed;
+  const show3D = attempt3D && ready;
 
   return (
-    <div ref={wrapRef} className="relative h-[380px] sm:h-[470px] lg:h-[560px] w-full">
+    <div ref={wrapRef} className="relative h-[340px] sm:h-[430px] md:h-[480px] lg:h-[540px] xl:h-[600px] w-full">
       {/* dev-only tier diagnostic — stripped from production builds */}
       {import.meta.env.DEV && (
         <p
           aria-hidden
-          className="absolute top-2 left-2 z-20 font-mono text-[0.58rem] uppercase tracking-[0.16em] px-2 py-1 clip-corner pointer-events-none bg-black/60 text-cyan-100/90 border border-white/10"
+          className="absolute top-2 left-2 z-30 font-mono text-[0.58rem] uppercase tracking-[0.16em] px-2 py-1 clip-corner pointer-events-none bg-black/60 text-cyan-100/90 border border-white/10"
         >
           3D MODE: {tier.toUpperCase()}
-          {failed ? " · SVG FALLBACK" : ""}
+          {failed ? " · SVG FALLBACK" : ready ? " · WEBGL LIVE" : attempt3D ? " · LOADING" : ""}
         </p>
       )}
 
-      {!use3D ? (
-        svgFallback
-      ) : (
-        <SceneBoundary fallback={svgFallback}>
-          <Suspense fallback={svgFallback}>
-            <div className="absolute inset-0 z-0 opacity-100">
+      {/* base layer — always present, never blank */}
+      <div className={cn("absolute inset-0 z-0 transition-opacity duration-1000", show3D && "opacity-0")}>
+        <OpsNetwork />
+      </div>
+
+      {/* 3D layer — lazy chunk, fades in after the first rendered frame */}
+      {attempt3D && (
+        <SceneBoundary>
+          <Suspense fallback={null}>
+            <div
+              className={cn(
+                "absolute inset-0 z-[1] transition-opacity duration-1000 ease-out",
+                ready ? "opacity-100" : "opacity-0"
+              )}
+            >
               <OpsCoreScene
                 variant="core"
                 quality={tier === "medium" ? "medium" : "high"}
                 frameloop={inView ? "always" : "never"}
+                onReady={() => setReady(true)}
                 onContextLost={() => setFailed(true)}
               />
             </div>
@@ -127,7 +136,7 @@ export default function HeroVisual() {
       )}
 
       {/* overlays for the 3D variant (the SVG variant carries its own) */}
-      {use3D && (
+      {show3D && (
         <>
           <p className="absolute top-2 right-2 z-10 font-mono text-[0.58rem] uppercase tracking-[0.16em] text-ink-400 bg-ink-950/70 hairline px-2 py-1 clip-corner pointer-events-none">
             AI operations core · demo

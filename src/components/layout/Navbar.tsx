@@ -260,7 +260,7 @@ export default function Navbar() {
           </div>
         </nav>
 
-        <div className="relative p-[clamp(1.125rem,4vw,2.5rem)] pt-4 border-t border-white/[.08] bg-ink-900/80 backdrop-blur-xl">
+        <div className="relative p-[clamp(1.125rem,4vw,2.5rem)] pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)] border-t border-white/[.08] bg-ink-900/80 backdrop-blur-xl">
           <Button to="/contact" className="w-full" size="lg" arrow onClick={() => setMobileOpen(false)}>
             {site.cta.consultation}
           </Button>

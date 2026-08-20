@@ -76,101 +76,270 @@ export const beforeFlow = ["Lead arrives", "Copied to Excel", "Human follows up 
 export const afterFlow = ["Lead arrives", "AI qualifies instantly", "CRM record created", "Personalised follow-up sent", "Meeting auto-booked", "Live dashboard updates"];
 
 /* ------------------------------ core capabilities --------------------------- */
+/* Five engineering groups: AI, Software, Web, Applications, Automation.      */
 
 export const serviceCategories: ServiceCategory[] = [
   {
-    id: "ai-agents",
+    id: "ai",
     index: "01",
-    title: "AI Agents",
-    tagline: "Autonomous agents working across your business systems",
+    title: "AI & Intelligent Systems",
+    tagline: "Agents, assistants and AI woven into your operations",
     description:
-      "Purpose-built AI agents that talk to leads, resolve support queries, qualify opportunities and keep operations moving — connected to your CRM, WhatsApp and calendars, with human escalation built in.",
+      "Purpose-built AI agents, chatbots and assistants that talk to leads, resolve support queries, qualify opportunities and reason over your documents — connected to your CRM, WhatsApp and calendars, with human escalation built in.",
     items: [
-      { name: "AI Sales Agent", blurb: "Converses with leads, qualifies intent and moves deals forward." },
-      { name: "AI Support Agent", blurb: "Resolves repetitive queries, escalates the complex ones." },
-      { name: "AI Lead Qualification Agent", blurb: "Scores enquiries so your team works the right list." },
-      { name: "AI Appointment Agent", blurb: "Checks availability and books directly into calendars." },
-      { name: "AI Operations Assistant", blurb: "Summaries, alerts and answers from your own data." },
-      { name: "AI Research Agent", blurb: "Gathers, structures and briefs — market, vendor, data." },
-      { name: "AI Data Analysis Agent", blurb: "Turns raw exports into decisions and daily reports." },
-      { name: "AI Lead Nurturing Agent", blurb: "Keeps cold pipelines warm with timed, relevant touchpoints." },
-      { name: "Custom AI Agents", blurb: "Designed around your exact business logic and policies." },
+      { name: "AI Agents", blurb: "Autonomous workers across sales, support and operations." },
+      { name: "AI Chatbots & Assistants", blurb: "Conversational interfaces grounded in your business." },
+      { name: "AI-Integrated Apps", blurb: "Intelligence embedded where your team already works." },
+      { name: "Document AI & Processing", blurb: "Extract, classify and summarise documents at scale." },
+      { name: "AI Search & Knowledge Bases", blurb: "Answers from your own data, with sources." },
+      { name: "AI Analytics & Recommendations", blurb: "Signals and next-best actions from live data." },
+      { name: "AI Lead Qualification", blurb: "Every enquiry scored and routed automatically." },
+      { name: "AI Workflow Systems", blurb: "Multi-step AI processes with policy checks." },
+      { name: "Custom AI Agents", blurb: "Designed around your exact business logic." },
     ],
     exampleFlow: ["New enquiry", "Agent conversation", "Qualification & score", "CRM update", "Human handoff"],
     integrations: ["WhatsApp", "CRM", "Calendars", "Knowledge base", "Email"],
     page: "/ai-agents",
-    pageLabel: "Explore AI Agents",
-  },
-  {
-    id: "automation",
-    index: "02",
-    title: "Intelligent Automation",
-    tagline: "Connect applications, eliminate repetitive workflows",
-    description:
-      "End-to-end automation of the work that eats your team's day: lead capture, follow-ups, CRM hygiene, invoicing, reporting — orchestrated across every tool you already use.",
-    items: [
-      { name: "Business Process Automation", blurb: "Map, automate and monitor core operational flows." },
-      { name: "Lead Capture Automation", blurb: "Every enquiry from every channel, captured in seconds." },
-      { name: "CRM Automation", blurb: "Records, stages and tasks that maintain themselves." },
-      { name: "Sales Pipeline Automation", blurb: "Deals move, stall-alerts fire, nothing slips." },
-      { name: "Follow-up Automation", blurb: "Personalised multi-step sequences that actually send." },
-      { name: "WhatsApp Automation", blurb: "Broadcasts, journeys and two-way AI conversations." },
-      { name: "Email Automation", blurb: "Routing, responses and drip flows tied to behaviour." },
-      { name: "Multi-channel Outreach", blurb: "WhatsApp + email + SMS orchestrated as one sequence." },
-      { name: "HR Automation", blurb: "Screening, onboarding and internal requests on rails." },
-      { name: "Reporting Automation", blurb: "Daily summaries generated and delivered automatically." },
-      { name: "Document Automation", blurb: "Contracts, letters and files generated from data." },
-      { name: "Invoice & Billing Automation", blurb: "Invoices raised, sent, reconciled and chased." },
-    ],
-    exampleFlow: ["Trigger", "AI decision", "CRM lookup", "WhatsApp reply", "Task + booking", "Report"],
-    integrations: ["Zoho / HubSpot / Salesforce", "WhatsApp API", "Google Workspace", "Tally / billing", "Sheets & DBs"],
-    page: "/automations",
-    pageLabel: "Explore Automations",
-  },
-  {
-    id: "integrations",
-    index: "03",
-    title: "AI + Business Integrations",
-    tagline: "New systems that speak to your existing stack",
-    description:
-      "Automation only works if systems talk. We connect CRMs, WhatsApp, telephony, ERPs, databases and third-party apps through clean APIs, webhooks and event pipelines.",
-    items: [
-      { name: "CRM Integration", blurb: "Bi-directional sync with the CRMs your team lives in." },
-      { name: "WhatsApp API", blurb: "Official API setup, templates, flows and AI replies." },
-      { name: "Google Workspace", blurb: "Gmail, Calendar, Drive and Sheets wired into workflows." },
-      { name: "Email Systems", blurb: "IMAP/SMTP and provider APIs for smart routing." },
-      { name: "APIs & Webhooks", blurb: "Event-driven bridges between any two systems." },
-      { name: "Databases", blurb: "Postgres, MySQL, Supabase, Airtable — queried safely." },
-      { name: "ERP & Business Software", blurb: "Tally, Marg, custom ERPs brought into the loop." },
-      { name: "Third-party Applications", blurb: "The long tail of SaaS your business depends on." },
-    ],
-    exampleFlow: ["Event webhook", "Normalise payload", "Auth & transform", "Write to system B", "Confirm + log"],
-    integrations: ["REST & GraphQL", "Webhooks", "OAuth & API keys", "Message queues"],
-    page: "/services#integrations",
-    pageLabel: "See Integration Services",
+    pageLabel: "Explore AI Systems",
   },
   {
     id: "software",
-    index: "04",
-    title: "Custom Software & Development",
-    tagline: "Dashboards, portals and AI-enabled applications",
+    index: "02",
+    title: "Custom Software Development",
+    tagline: "Business software, SaaS, CRM/ERP and internal systems",
     description:
-      "When off-the-shelf can't fit, we engineer it: internal tools, business dashboards, customer portals, SaaS products and AI-enabled web applications built for your exact processes.",
+      "When off-the-shelf can't fit, we engineer it: CRM and ERP-style systems, business dashboards, client and vendor portals, SaaS platforms and internal tools — built for your exact processes, with AI where it earns its place.",
     items: [
-      { name: "Custom AI Software", blurb: "Products with AI reasoning at their core." },
-      { name: "SaaS Development", blurb: "Multi-tenant platforms built to scale and bill." },
+      { name: "Custom Business Software", blurb: "Systems shaped around your operations, not the reverse." },
+      { name: "SaaS Platforms", blurb: "Multi-tenant products built to scale and bill." },
+      { name: "CRM Systems", blurb: "Pipeline, contacts and activity your team will actually use." },
+      { name: "ERP-Style Systems", blurb: "Inventory, orders, billing and ops in one place." },
       { name: "Business Dashboards", blurb: "Live operational visibility across every system." },
-      { name: "Web Applications", blurb: "Fast, secure, mobile-ready business apps." },
-      { name: "Internal Business Tools", blurb: "Replace spreadsheets with proper tooling." },
-      { name: "Custom Portals", blurb: "Client, vendor and employee self-service." },
-      { name: "AI-enabled Websites", blurb: "Marketing sites with agents embedded." },
-      { name: "API Development", blurb: "Documented, versioned APIs for your ecosystem." },
+      { name: "Client & Vendor Portals", blurb: "Self-service that removes the status-call traffic." },
+      { name: "Internal Management Tools", blurb: "Replace the spreadsheet that runs your business." },
+      { name: "Workflow Platforms", blurb: "Approvals, tasks and handoffs on rails." },
+      { name: "Custom APIs & Backends", blurb: "Documented, versioned APIs for your ecosystem." },
     ],
     exampleFlow: ["Discovery", "Architecture", "Build & test", "Deploy", "Iterate"],
     integrations: ["React & TypeScript", "Node / serverless", "Postgres / Supabase", "CI/CD"],
     page: "/custom-software",
-    pageLabel: "Explore Custom Software",
+    pageLabel: "Explore Software",
   },
+  {
+    id: "web",
+    index: "03",
+    title: "Web & Digital Products",
+    tagline: "Custom websites, web applications and AI-powered web experiences",
+    description:
+      "Custom digital experiences engineered like products: corporate and business websites, web applications, e-commerce and AI-integrated websites — with admin panels, CMS, lead capture and integrations built in from day one.",
+    items: [
+      { name: "Custom Websites", blurb: "Corporate, business and institutional sites, engineered." },
+      { name: "Web Applications", blurb: "Fast, secure, mobile-ready business apps." },
+      { name: "AI-Integrated Websites", blurb: "Sites with assistants, search and routing built in." },
+      { name: "E-Commerce Experiences", blurb: "Stores with inventory, payments and automation." },
+      { name: "CMS-Enabled Websites", blurb: "Your team publishes; engineering stays out of the way." },
+      { name: "Booking-Enabled Websites", blurb: "Appointments and site visits booked straight from the site." },
+      { name: "Interactive 3D Web Experiences", blurb: "Premium WebGL moments where they earn attention." },
+      { name: "Client Portals", blurb: "Private areas wired to your backend." },
+      { name: "Lead-Generation Websites", blurb: "Every visit captured, scored and routed." },
+    ],
+    exampleFlow: ["Strategy & UX", "Design system", "Build", "CMS + forms", "Launch & SEO"],
+    integrations: ["Responsive engineering", "Admin panels", "CRM-connected forms", "Analytics"],
+    page: "/web-development",
+    pageLabel: "Explore Web",
+  },
+  {
+    id: "apps",
+    index: "04",
+    title: "Mobile & PWA Applications",
+    tagline: "Customer, employee and operations apps — mobile-ready by design",
+    description:
+      "Business applications for the pocket: customer apps, employee and operations apps, booking and service apps, and progressive web apps — cross-platform, offline-aware, with AI features where they create value.",
+    items: [
+      { name: "Cross-Platform Apps", blurb: "One codebase, every screen your users carry." },
+      { name: "Customer Apps", blurb: "Booking, tracking and self-service in one place." },
+      { name: "Employee & Operations Apps", blurb: "Field teams, approvals and updates from anywhere." },
+      { name: "Booking & Service Apps", blurb: "Scheduling with reminders that actually reduce no-shows." },
+      { name: "Progressive Web Apps", blurb: "Installable, offline-ready web experiences." },
+      { name: "AI-Powered Apps", blurb: "Chat, voice, scan and recommendations on-device." },
+      { name: "Mobile Dashboards", blurb: "The numbers that matter, in a pocket." },
+    ],
+    exampleFlow: ["Use-case mapping", "UX & flows", "Build", "Publish / install", "Monitor"],
+    integrations: ["Offline-ready sync", "Push notifications", "Camera & document scan", "Payments"],
+    page: "/app-development",
+    pageLabel: "Explore Apps",
+  },
+  {
+    id: "automation",
+    index: "05",
+    title: "Automation & Integrations",
+    tagline: "CRM, WhatsApp, email, ERP and every system in between",
+    description:
+      "End-to-end automation of the work that eats your team's day — lead capture, follow-ups, CRM hygiene, invoicing, reporting — orchestrated across every tool you already use through clean APIs, webhooks and event pipelines.",
+    items: [
+      { name: "CRM Automation", blurb: "Records, stages and tasks that maintain themselves." },
+      { name: "WhatsApp Automation", blurb: "Broadcasts, journeys and two-way AI conversations." },
+      { name: "Email & Outreach Automation", blurb: "Routing, responses and sequences tied to behaviour." },
+      { name: "Sales & Lead Automation", blurb: "Speed-to-lead, scoring, nurturing, stall alerts." },
+      { name: "Reporting Automation", blurb: "Daily summaries generated and delivered automatically." },
+      { name: "Operations Automation", blurb: "HR, documents, invoices and approvals on rails." },
+      { name: "API & Webhook Integrations", blurb: "Event-driven bridges between any two systems." },
+      { name: "ERP & Billing Integrations", blurb: "Tally, Marg and custom ERPs brought into the loop." },
+      { name: "Payment & Workspace Integrations", blurb: "Razorpay, Google Workspace and the SaaS long tail." },
+    ],
+    exampleFlow: ["Trigger", "AI decision", "CRM lookup", "WhatsApp reply", "Task + booking", "Report"],
+    integrations: ["Zoho / HubSpot / Salesforce", "WhatsApp API", "Google Workspace", "Tally / billing"],
+    page: "/automations",
+    pageLabel: "Explore Automation",
+  },
+];
+
+/* --------------------- homepage: what we build (6 capabilities) --------------------- */
+
+export type BuildCapability = {
+  id: string;
+  num: string;
+  title: string;
+  line: string;
+  description: string;
+  deliverables: string[];
+  page: string;
+  pageLabel: string;
+  glyph: "browser" | "app" | "stack" | "phone" | "spark" | "flow";
+};
+
+export const whatWeBuild: BuildCapability[] = [
+  {
+    id: "websites",
+    num: "01",
+    title: "Custom Websites",
+    line: "Business websites engineered like products",
+    description:
+      "Corporate, institutional and lead-generation websites with custom UI/UX, animation, CMS and admin panels — connected to your CRM, WhatsApp and booking systems from day one.",
+    deliverables: ["Corporate & business websites", "AI-integrated websites", "Booking-enabled sites", "CMS + admin panel", "Lead capture & routing", "SEO & performance engineering"],
+    page: "/web-development",
+    pageLabel: "Explore Web Development",
+    glyph: "browser",
+  },
+  {
+    id: "webapps",
+    num: "02",
+    title: "Web Applications",
+    line: "Dashboards, portals and management systems",
+    description:
+      "Business management systems, client and vendor portals, dashboards and SaaS products — secure, role-controlled and built around your workflows instead of forcing your team into someone else's.",
+    deliverables: ["Business management systems", "Client & vendor portals", "Dashboards & analytics", "Booking & marketplace platforms", "SaaS products", "AI-powered web apps"],
+    page: "/web-development",
+    pageLabel: "Explore Web Applications",
+    glyph: "app",
+  },
+  {
+    id: "software",
+    num: "03",
+    title: "Custom Software",
+    line: "CRM, ERP-style systems and internal tooling",
+    description:
+      "When off-the-shelf can't fit, we engineer it: CRM and ERP-style software, inventory and order systems, workflow platforms and internal tools — documented, monitored and handed over to you.",
+    deliverables: ["CRM & ERP-style systems", "Inventory & order management", "Workflow & approval platforms", "Document management", "Custom APIs & backends", "Reporting platforms"],
+    page: "/custom-software",
+    pageLabel: "Explore Custom Software",
+    glyph: "stack",
+  },
+  {
+    id: "apps",
+    num: "04",
+    title: "Mobile & PWA Applications",
+    line: "Customer, employee and operations apps",
+    description:
+      "Cross-platform and progressive web applications for customers and teams: booking apps, service apps, field-operations apps and mobile dashboards — with AI features where they create real value.",
+    deliverables: ["Customer & booking apps", "Employee & operations apps", "Progressive Web Apps", "AI chat, voice & scan", "Push notifications & offline sync", "Mobile dashboards"],
+    page: "/app-development",
+    pageLabel: "Explore App Development",
+    glyph: "phone",
+  },
+  {
+    id: "ai",
+    num: "05",
+    title: "AI-Powered Products",
+    line: "Agents, assistants and intelligence in-product",
+    description:
+      "AI agents and assistants embedded in websites, apps and internal systems — sales agents, support agents, document AI, intelligent search and recommendations, each with decision traces and human handoff.",
+    deliverables: ["AI sales & support agents", "AI assistants & chatbots", "Document AI & summarisation", "AI search & knowledge bases", "Recommendations & personalisation", "Decision traces + human escalation"],
+    page: "/ai-agents",
+    pageLabel: "Explore AI Systems",
+    glyph: "spark",
+  },
+  {
+    id: "automation",
+    num: "06",
+    title: "Automation & AI Agents",
+    line: "Workflows that run themselves across your stack",
+    description:
+      "Lead capture, follow-ups, CRM hygiene, invoicing and reporting automated end-to-end — orchestrated across WhatsApp, email, CRM, ERP and billing through monitored, logged workflows.",
+    deliverables: ["CRM & sales automation", "WhatsApp & email automation", "Lead capture & nurturing", "Invoice & billing automation", "Reporting automation", "ERP & third-party integrations"],
+    page: "/automations",
+    pageLabel: "Explore Automation",
+    glyph: "flow",
+  },
+];
+
+/* --------------------- product architecture layers --------------------- */
+
+export const architectureLayers: { id: string; label: string; items: string[]; tone: string }[] = [
+  { id: "frontend", label: "Custom Frontend", items: ["Website", "Web App", "Mobile App", "Dashboard"], tone: "#56D9FF" },
+  { id: "app", label: "Application Layer", items: ["Business Logic", "Permissions", "Workflows"], tone: "#8FB4FF" },
+  { id: "ai", label: "AI Layer", items: ["LLM", "AI Agents", "Knowledge Base", "Document AI", "Recommendations"], tone: "#3E7BFF" },
+  { id: "backend", label: "Backend", items: ["Supabase", "PostgreSQL", "APIs", "Storage", "Auth"], tone: "#8FB4FF" },
+  { id: "business", label: "Business Systems", items: ["CRM", "WhatsApp", "Email", "Payments", "ERP", "Calendar", "Analytics"], tone: "#3DDC97" },
+];
+
+export const traditionalVsAi = {
+  traditional: [
+    "User inputs data",
+    "Software stores the data",
+    "User manually decides the next action",
+    "Someone updates the other tools by hand",
+    "Reports are built at month-end",
+  ],
+  ai: [
+    "Data enters the system",
+    "AI analyses the context",
+    "AI recommends — or performs — the next action",
+    "CRM, WhatsApp and calendars update themselves",
+    "A human reviews the decisions that matter",
+  ],
+};
+
+/* --------------------- lifecycle: idea → intelligent system --------------------- */
+
+export const lifecyclePhases: { phase: string; steps: string[] }[] = [
+  { phase: "Discover", steps: ["Idea", "Product Strategy", "UI/UX"] },
+  { phase: "Build", steps: ["Website / App / Software", "Backend"] },
+  { phase: "Make Intelligent", steps: ["AI", "Automation", "Integrations"] },
+  { phase: "Run", steps: ["Deployment", "Monitoring & Improvement"] },
+];
+
+/* --------------------- illustrative solution architectures --------------------- */
+
+export const solutionArchitectures: { sector: string; tone: string; components: string[]; outcome: string }[] = [
+  { sector: "Real Estate", tone: "#56D9FF", components: ["Business Website", "Property CRM", "AI Lead Agent", "WhatsApp Automation", "Site-Visit Booking"], outcome: "Portal leads answered, scored and booked without a manual touch." },
+  { sector: "Healthcare", tone: "#3DDC97", components: ["Clinic Website", "Appointment System", "Patient Portal", "AI Assistant", "Reminder Automation"], outcome: "Front desk handles patients, not phone tag and no-shows." },
+  { sector: "Education", tone: "#8FB4FF", components: ["Institution Website", "Admissions Portal", "Student Management", "AI Enquiry Assistant", "Follow-up Automation"], outcome: "Every admission enquiry chased, documented and converted." },
+  { sector: "Retail", tone: "#FFB454", components: ["E-Commerce Store", "Inventory System", "Customer App", "AI Support", "Order Automation"], outcome: "Orders, stock and support questions flow through one system." },
+  { sector: "Professional Services", tone: "#3E7BFF", components: ["Firm Website", "Client Portal", "CRM", "AI Assistant", "Document Automation"], outcome: "Clients self-serve status while documents generate themselves." },
+];
+
+/* --------------------- contact / assessment options --------------------- */
+
+export const projectTypes = [
+  "Custom Website", "Web Application", "Custom Software", "Mobile Application",
+  "AI-Integrated Website/App", "AI Agent", "AI Automation", "CRM / ERP System",
+  "Business Dashboard", "API / Integration", "E-Commerce", "Not Sure — Need Consultation",
+];
+
+export const buildOptions = [
+  "Website", "Web App", "Software", "Mobile App", "AI System",
+  "Automation", "Integration", "Multiple Systems", "Not Sure",
 ];
 
 /* --------------------------------- AI agents -------------------------------- */
