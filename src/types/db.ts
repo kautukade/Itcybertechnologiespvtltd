@@ -186,6 +186,15 @@ export interface AssessmentRow extends BaseRow {
   timeline: string | null;
   answers_json: Json;
   status: "new" | "reviewed" | "converted" | "archived";
+  assigned_to: string | null;
+}
+
+export interface LeadNoteRow {
+  id: string;
+  lead_id: string;
+  admin_user_id: string | null;
+  note: string;
+  created_at: string;
 }
 
 export interface CareerApplicationRow extends BaseRow {
@@ -237,6 +246,8 @@ export interface AnnouncementRow extends BaseRow {
   cta_label: string | null;
   cta_to: string | null;
   active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
 }
 
 export interface SocialLinkRow extends BaseRow {
@@ -276,6 +287,7 @@ export interface Database {
       resources: Crud<ResourceRow>;
       jobs: Crud<JobRow>;
       contact_leads: Crud<ContactLeadRow>;
+      lead_notes: { Row: LeadNoteRow; Insert: Omit<LeadNoteRow, "id" | "created_at">; Update: Partial<LeadNoteRow> };
       automation_assessments: Crud<AssessmentRow>;
       career_applications: Crud<CareerApplicationRow>;
       media_library: Crud<MediaRow>;

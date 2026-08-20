@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { site, nav } from "../../data/site";
 import { useSiteSettings } from "../../lib/cms";
+import { useAnnouncement } from "../../lib/cms";
 import { serviceCategories, industries, functionSolutions } from "../../data/content";
 import { cn } from "../../lib/utils";
 import { Logo, IconMenu, IconClose, IconChevron, IconArrow, IconAgent, IconFlow, IconPlug, IconCode, IconArrowUpRight } from "../icons";
@@ -22,8 +23,14 @@ export default function Navbar() {
   const [announceHidden, setAnnounceHidden] = useState(false);
   const closeTimer = useRef<number | null>(null);
   const settings = useSiteSettings();
-  const navOverride = (settings._navigation ?? {}) as { announcement?: Partial<{ show: boolean; text: string; cta: string; to: string }> };
-  const ann = { ...site.announcement, ...(navOverride.announcement ?? {}) };
+  const navOverride = (settings._navigation ?? {}) as { announcement?: Partial<{ show: boolean }> };
+  const announcement = useAnnouncement();
+  const ann = {
+    show: (navOverride.announcement?.show ?? site.announcement.show) && !announcement.dismissed,
+    text: announcement.text,
+    cta: announcement.cta,
+    to: announcement.to,
+  };
   const location = useLocation();
 
   useEffect(() => {
@@ -88,7 +95,7 @@ export default function Navbar() {
             <Link to={ann.to} className="shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.14em] text-cyan-ic hover:text-white transition-colors inline-flex items-center gap-1.5">
               {ann.cta} <IconArrow size={12} />
             </Link>
-            <button onClick={() => setAnnounceHidden(true)} aria-label="Dismiss announcement" className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-white transition-colors p-1">
+            <button onClick={() => { announcement.dismiss(); setAnnounceHidden(true); }} aria-label="Dismiss announcement" className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-white transition-colors p-1">
               <IconClose size={13} />
             </button>
           </div>

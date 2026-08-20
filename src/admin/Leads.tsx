@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { useAdminTable } from "../lib/cms";
-import { logActivity } from "../lib/auth";
-import type { ContactLeadRow, ProfileRow } from "../types/db";
+import { logActivity, useAuth } from "../lib/auth";
+import type { ContactLeadRow, ProfileRow, LeadNoteRow } from "../types/db";
 import { PageHead, ATable, AButton, AInput, ASelect, ADrawer, ABadge, FieldRow, Pagination, toast, ErrorState, AConfirm, type Column } from "./ui";
 
 const db = supabase as unknown as SupabaseClient | null;
@@ -126,6 +126,21 @@ function LeadDrawer({ lead, users, onClose, onChanged }: { lead: ContactLeadRow 
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState("");
   const [confirmSpam, setConfirmSpam] = useState(false);
+  const [notes, setNotes] = useState<LeadNoteRow[]>([]);
+
+  // Load the per-lead note history whenever a lead is opened
+  useEffect(() => {
+    let cancelled = false;
+    if (!lead || !db) return;
+    setNotes([]);
+    (async () => {
+      const { data } = await db.from("lead_notes").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false });
+      if (!cancelled && data) setNotes(data as LeadNoteRow[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!lead) return <ADrawer open={false} onClose={onClose} title=""><span /></ADrawer>;
 
@@ -193,28 +208,10 @@ function LeadDrawer({ lead, users, onClose, onChanged }: { lead: ContactLeadRow 
         </div>
       )}
 
-      <div className="mt-6">
-        <FieldRow label="Add internal note">
-          <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} className="w-full px-3 py-2 rounded-md border border-slate-300 text-[0.84rem] focus:outline-2 focus:outline-blue-500" placeholder="Visible to the team only…" />
-        </FieldRow>
-        <div className="flex gap-2 mt-2">
-          <AButton
-            size="sm"
-            disabled={!note.trim() || saving}
-            loading={saving}
-            onClick={() => {
-              const stamped = `[${new Date().toLocaleString()}] ${note.trim()}\n`;
-              patch({ notes: (lead.notes ? lead.notes + "\n" : "") + stamped }, "lead note added");
-              setNote("");
-            }}
-          >
-            Save note
-          </AButton>
-          <AButton variant="danger" size="sm" onClick={() => setConfirmSpam(true)}>Mark as spam</AButton>
-        </div>
-        {lead.notes && (
-          <p className="mt-4 text-[0.8rem] text-slate-600 bg-amber-50 border border-amber-200 rounded-md p-3 whitespace-pre-wrap">{lead.notes}</p>
-        )}
+      <NoteHistory lead={lead} notes={notes} note={note} setNote={setNote} saving={saving} onSaved={(n) => setNotes((x) => [n, ...x])} />
+
+      <div className="flex gap-2 mt-4">
+        <AButton variant="danger" size="sm" onClick={() => setConfirmSpam(true)}>Mark as spam</AButton>
       </div>
 
       <AConfirm
@@ -227,5 +224,59 @@ function LeadDrawer({ lead, users, onClose, onChanged }: { lead: ContactLeadRow 
         onConfirm={() => { setConfirmSpam(false); patch({ status: "spam" }, "lead marked spam"); }}
       />
     </ADrawer>
+  );
+}
+
+/** Per-lead note history backed by the `lead_notes` table. */
+function NoteHistory({
+  lead, notes, note, setNote, saving, onSaved,
+}: {
+  lead: ContactLeadRow;
+  notes: LeadNoteRow[];
+  note: string;
+  setNote: (v: string) => void;
+  saving: boolean;
+  onSaved: (n: LeadNoteRow) => void;
+}) {
+  const { profile } = useAuth();
+  const [busy, setBusy] = useState(false);
+
+  const addNote = async () => {
+    if (!db || !note.trim()) return;
+    setBusy(true);
+    const { data, error } = await db
+      .from("lead_notes")
+      .insert({ lead_id: lead.id, admin_user_id: profile?.id ?? null, note: note.trim() })
+      .select()
+      .single();
+    setBusy(false);
+    if (error || !data) {
+      toast(error?.message ?? "Could not save the note.", "err");
+      return;
+    }
+    await logActivity("lead note added", "contact_lead", lead.id);
+    onSaved(data as LeadNoteRow);
+    setNote("");
+  };
+
+  return (
+    <div className="mt-6">
+      <FieldRow label="Add internal note">
+        <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} className="w-full px-3 py-2 rounded-md border border-slate-300 text-[0.84rem] focus:outline-2 focus:outline-blue-500" placeholder="Visible to the team only…" />
+      </FieldRow>
+      <div className="flex gap-2 mt-2">
+        <AButton size="sm" disabled={!note.trim() || saving || busy} loading={busy} onClick={addNote}>Save note</AButton>
+      </div>
+      {notes.length > 0 && (
+        <ul className="mt-4 space-y-2">
+          {notes.map((n) => (
+            <li key={n.id} className="text-[0.8rem] text-slate-700 bg-amber-50 border border-amber-200 rounded-md p-3">
+              <span className="whitespace-pre-wrap">{n.note}</span>
+              <span className="block mt-1.5 text-[0.66rem] text-amber-700">{new Date(n.created_at).toLocaleString()}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

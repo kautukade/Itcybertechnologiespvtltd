@@ -83,6 +83,52 @@ export function useSiteSettings(): SiteConfig & { live: boolean; loading: boolea
   return useMemo(() => ({ ...merged, live: sb !== null, loading }), [merged, loading]);
 }
 
+export interface LiveAnnouncement {
+  text: string;
+  cta: string;
+  to: string;
+}
+
+/**
+ * Active announcement: from the `announcements` table when Supabase is live
+ * (honouring active + starts_at/ends_at), otherwise the static default.
+ * Visitor dismissal is persisted in localStorage so it stays dismissed.
+ */
+export function useAnnouncement(): LiveAnnouncement & { dismissed: boolean; dismiss: () => void } {
+  const [live, setLive] = useState<LiveAnnouncement | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setDismissed(localStorage.getItem("itcyber_announcement_dismissed") === "1");
+    } catch {
+      setDismissed(false);
+    }
+    if (!sb) return;
+    (async () => {
+      const { data } = await sb.from("announcements").select("*").eq("active", true).limit(1).maybeSingle();
+      if (data) {
+        const now = new Date().toISOString();
+        const startsOk = !data.starts_at || data.starts_at <= now;
+        const endsOk = !data.ends_at || data.ends_at >= now;
+        if (startsOk && endsOk) setLive({ text: data.text, cta: data.cta_label ?? "Learn more", to: data.cta_to ?? "/" });
+      }
+    })();
+  }, []);
+
+  const dismiss = () => {
+    setDismissed(true);
+    try {
+      localStorage.setItem("itcyber_announcement_dismissed", "1");
+    } catch {
+      /* private mode — dismissal just won't persist */
+    }
+  };
+
+  const ann = live ?? { text: staticSite.announcement.text, cta: staticSite.announcement.cta, to: staticSite.announcement.to };
+  return { ...ann, dismissed, dismiss };
+}
+
 /** Minimal admin table reader (all rows). */
 export function useAdminTable<T extends TableName>(table: T, orderBy = "created_at") {
   const [rows, setRows] = useState<RowOf<T>[]>([]);

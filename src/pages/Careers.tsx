@@ -295,7 +295,7 @@ function ApplicationForm({ jobs, role, onRoleChange }: { jobs: Job[]; role: Job 
             <h2 className="font-display font-bold text-ink-900 text-[clamp(1.6rem,3vw,2.4rem)] tracking-tight mt-5">Application received.</h2>
             <p className="text-ink-500 mt-3 leading-relaxed">
               Thanks, {form.name.split(" ")[0]} — our team reviews every application personally.
-              Expect a reply at <strong className="text-ink-800">{form.email}</strong> within three working days.
+              Every application is read by a person. We'll reply to <strong className="text-ink-800">{form.email}</strong> as soon as it's reviewed.
             </p>
             <Button to="/careers" variant="light" className="mt-7">View more roles</Button>
           </Reveal>

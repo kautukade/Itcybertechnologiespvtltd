@@ -191,7 +191,7 @@ export default function Software() {
           <Reveal>
             <CtaBand
               title="Have a build in mind — or just a bottleneck?"
-              text="Send the rough idea. You'll get an engineer's read on scope, stack and timeline within one business day."
+              text="Send the rough idea. An engineer replies with an honest read on scope, stack and timeline."
               primaryLabel="Start a Project"
               primaryTo="/contact"
               secondaryLabel="Explore AI Agents"

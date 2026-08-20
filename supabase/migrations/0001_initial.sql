@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════════════════════════════
--- ITCYBER TECHNOLOGIES PVT LTD — Supabase schema, RLS & storage
--- Run this in the Supabase SQL editor (or via `supabase db push`).
+-- ITCYBER TECHNOLOGIES PVT LTD — initial schema, RLS & storage
+-- Migration 0001 · apply via `supabase db push` or run in the SQL editor.
 -- ═══════════════════════════════════════════════════════════════════════
 
 create extension if not exists "uuid-ossp";
@@ -323,7 +323,7 @@ begin
                            'technologies','resources','jobs','legal_pages','announcements',
                            'social_links','media_library']
   loop
-    execute format('drop trigger if exists %I_updated on public.%I; 
+    execute format('drop trigger if exists %I_updated on public.%I;
                     create trigger %I_updated before update on public.%I
                     for each row execute function public.set_updated_at();', t, t, t, t);
   end loop;
@@ -376,8 +376,8 @@ end $$;
 create policy "public read jobs" on public.jobs for select using (published = true);
 
 -- ── anonymous users can NEVER insert/update/delete CMS or lead tables ──
--- (Public submissions flow through the `submit-public` Edge Function, which
---  uses the service role after server-side validation.)
+-- (Public submissions flow through the submission Edge Functions, which
+--  use the service role after server-side validation.)
 
 -- ── admin write policies by role ──
 do $$
@@ -417,7 +417,7 @@ create policy "assessments manage" on public.automation_assessments for all
   using (public.is_active_profile() and public.current_app_role() in ('sales','admin','super_admin'))
   with check (public.is_active_profile() and public.current_app_role() in ('sales','admin','super_admin'));
 
--- jobs & applications: hr, admin, super_admin (sales may read applications? no — hr scope)
+-- jobs & applications: hr, admin, super_admin
 create policy "jobs manage" on public.jobs for all
   using (public.is_active_profile() and public.current_app_role() in ('hr','admin','super_admin'))
   with check (public.is_active_profile() and public.current_app_role() in ('hr','admin','super_admin'));

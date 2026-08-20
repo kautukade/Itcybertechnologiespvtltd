@@ -45,11 +45,11 @@ export function applyPageMeta(meta: PageMeta) {
   upsertMeta("property", "og:description", meta.description);
   upsertMeta("property", "og:url", `${SITE_URL}${meta.path}`);
   upsertMeta("property", "og:type", "website");
-  upsertMeta("property", "og:image", meta.ogImage ?? `${SITE_URL}/og.svg`);
+  upsertMeta("property", "og:image", meta.ogImage ?? `${SITE_URL}/og/itcyber-default.svg`);
   upsertMeta("name", "twitter:card", "summary_large_image");
   upsertMeta("name", "twitter:title", meta.title);
   upsertMeta("name", "twitter:description", meta.description);
-  upsertMeta("name", "twitter:image", meta.ogImage ?? `${SITE_URL}/og.svg`);
+  upsertMeta("name", "twitter:image", meta.ogImage ?? `${SITE_URL}/og/itcyber-default.svg`);
 
   let schemaEl = document.getElementById("page-schema");
   if (meta.schema) {

@@ -30,7 +30,13 @@ export interface SubmissionMeta {
   utm_campaign?: string;
 }
 
-/** Submit via the Edge Function. Throws SubmissionError on any failure. */
+const FUNCTION_BY_KIND: Record<SubmissionKind, string> = {
+  contact: "submit-contact",
+  assessment: "submit-assessment",
+  career: "submit-career",
+};
+
+/** Submit via the kind-specific Edge Function. Throws SubmissionError on any failure. */
 export async function submitPublic(
   kind: SubmissionKind,
   payload: Record<string, unknown>,
@@ -38,8 +44,8 @@ export async function submitPublic(
 ): Promise<void> {
   if (!supabase) throw new SubmissionError(BACKEND_MISSING_ERROR);
 
-  const { error } = await supabase.functions.invoke("submit-public", {
-    body: { kind, payload, meta },
+  const { error } = await supabase.functions.invoke(FUNCTION_BY_KIND[kind], {
+    body: { ...payload, ...meta },
   });
 
   if (error) {

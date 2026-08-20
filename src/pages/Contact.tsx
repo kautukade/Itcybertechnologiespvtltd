@@ -127,7 +127,7 @@ export default function Contact() {
               </div>
             </div>
             <p className="font-mono text-[0.66rem] uppercase tracking-[0.14em] text-ink-400">
-              Submissions are stored securely and reviewed within one business day.
+              Submissions are stored securely and reviewed by an engineer — not a routing bot.
             </p>
           </div>
 
@@ -453,7 +453,7 @@ function SuccessCard({ name, email, what }: { name: string; email: string; what:
       </h2>
       <p className="text-ink-500 mt-3 leading-relaxed max-w-md mx-auto">
         Thanks, {name.split(" ")[0]} — it's safely stored and a real person reviews every submission.
-        Expect a reply at <strong className="text-ink-800">{email}</strong> within one business day.
+        Your details are safely stored and a real engineer reviews every submission. We'll reply to <strong className="text-ink-800">{email}</strong> as soon as it's read.
       </p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
         <Button to="/" variant="light">Back to Home</Button>
