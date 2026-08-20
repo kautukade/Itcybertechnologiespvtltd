@@ -38,8 +38,8 @@ function Hero() {
       <div className="absolute inset-0" style={{ background: "radial-gradient(40rem 28rem at 8% 90%, rgba(86,217,255,.07), transparent 60%)" }} aria-hidden />
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand-500/60 to-transparent" aria-hidden />
 
-      <div className="relative wrap pt-[clamp(3rem,6vw,5.5rem)] pb-[clamp(3.5rem,7vw,6rem)]">
-        <div className="grid lg:grid-cols-[1.02fr_1fr] gap-x-12 gap-y-14 items-center">
+      <div className="relative wrap pt-[clamp(2.5rem,5vw,4.5rem)] pb-[clamp(3rem,6vw,5rem)] lg:min-h-[calc(100svh-8.5rem)] lg:max-h-[1060px] lg:flex lg:flex-col lg:justify-center">
+        <div className="grid lg:grid-cols-[1.02fr_1fr] gap-x-12 gap-y-10 items-center">
           <div>
             <Reveal>
               <p className="eyebrow text-cyan-ic flex items-center gap-3">

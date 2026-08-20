@@ -39,6 +39,28 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Global horizontal-overflow guard — `clip` (unlike `hidden`) does not
+   create a scroll container, so sticky headers keep working. */
+html,
+body {
+  overflow-x: clip;
+}
+
+/* Prevent iOS from zooming into form fields on focus (needs >= 16px). */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 body {
   font-family: var(--font-body);
   background: var(--color-ink-950);

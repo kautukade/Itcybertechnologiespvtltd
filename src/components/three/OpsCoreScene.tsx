@@ -5,7 +5,6 @@
  * This is demonstration UI — it visualises how agents connect systems.
  */
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Line } from "@react-three/drei";
 import * as THREE from "three";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 
@@ -72,6 +71,8 @@ export interface OpsSceneProps {
   frameloop?: "always" | "never" | "demand";
   /** Called if the WebGL context is lost at runtime (host swaps to SVG). */
   onContextLost?: () => void;
+  /** Called once the first frame has rendered (host crossfades the canvas in). */
+  onReady?: () => void;
 }
 
 /* ── window pointer (canvas itself ignores pointer events) ── */
@@ -212,14 +213,60 @@ function Node({ def, index }: { def: NodeDef; index: number }) {
   );
 }
 
+/* Native lineSegments — one draw call for every connection, no drei needed. */
 function EdgeLines({ edges }: { edges: Edge[] }) {
+  const positions = useMemo(() => {
+    const arr = new Float32Array(edges.length * 6);
+    edges.forEach((e, i) => {
+      arr[i * 6] = e.a[0];
+      arr[i * 6 + 1] = e.a[1];
+      arr[i * 6 + 2] = e.a[2];
+      arr[i * 6 + 3] = e.b[0];
+      arr[i * 6 + 4] = e.b[1];
+      arr[i * 6 + 5] = e.b[2];
+    });
+    return arr;
+  }, [edges]);
   return (
-    <>
-      {edges.map((e, i) => (
-        <Line key={i} points={[e.a, e.b]} color="#33507f" lineWidth={1} transparent opacity={0.42} />
-      ))}
-    </>
+    <lineSegments>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <lineBasicMaterial color="#3d5c96" transparent opacity={0.5} />
+    </lineSegments>
   );
+}
+
+/* Keeps the whole graph inside the frame at any container aspect ratio.
+   Without this, nodes beyond the vertical fov clip off-canvas on narrow
+   containers (tablets, portrait windows, preview panes). */
+function FrameFit({ radius = 5.8 }: { radius?: number }) {
+  const { camera, size } = useThree();
+  const target = useRef(11);
+  useEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera;
+    const halfFov = ((cam.fov ?? 38) * Math.PI) / 360;
+    const aspect = Math.max(size.width, 1) / Math.max(size.height, 1);
+    const distV = radius / Math.tan(halfFov);
+    const distH = radius / (Math.tan(halfFov) * aspect);
+    target.current = Math.min(17, Math.max(9.5, Math.max(distV, distH) + 1.15));
+  }, [camera, size, radius]);
+  useFrame(() => {
+    camera.position.z += (target.current - camera.position.z) * 0.07;
+  });
+  return null;
+}
+
+/* Fires once the first frame has rendered so the host can crossfade in. */
+function ReadySignal({ onReady }: { onReady?: () => void }) {
+  const fired = useRef(false);
+  useFrame(() => {
+    if (!fired.current) {
+      fired.current = true;
+      requestAnimationFrame(() => onReady?.());
+    }
+  });
+  return null;
 }
 
 function Packets({ edges }: { edges: Edge[] }) {
@@ -245,10 +292,13 @@ function Packets({ edges }: { edges: Edge[] }) {
   return (
     <group ref={group}>
       {edges.map((e, i) => (
-        <mesh key={i}>
-          <sphereGeometry args={[0.05, 8, 8]} />
-          <meshBasicMaterial color={e.color} transparent opacity={0.95} />
-        </mesh>
+        <group key={i}>
+          <Glow color={e.color} scale={0.62} opacity={0.5} />
+          <mesh>
+            <sphereGeometry args={[0.05, 8, 8]} />
+            <meshBasicMaterial color={e.color} transparent opacity={0.95} />
+          </mesh>
+        </group>
       ))}
     </group>
   );
@@ -281,7 +331,7 @@ function Particles() {
   );
 }
 
-export default function OpsCoreScene({ variant = "core", quality = "high", frameloop = "always", onContextLost }: OpsSceneProps) {
+export default function OpsCoreScene({ variant = "core", quality = "high", frameloop = "always", onContextLost, onReady }: OpsSceneProps) {
   const nodes = useMemo(
     () => (quality === "medium" ? OPS_NODES.slice(0, 8) : OPS_NODES),
     [quality]
@@ -327,6 +377,8 @@ export default function OpsCoreScene({ variant = "core", quality = "high", frame
       {/* cyan rim from behind-left — separates nodes from the background */}
       <directionalLight position={[-6, -3, -5]} intensity={0.5} color="#56D9FF" />
       <PointerRig />
+      <FrameFit />
+      <ReadySignal onReady={onReady} />
       <group>
         <Core />
         <Rings />
