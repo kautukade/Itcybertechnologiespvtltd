@@ -7,7 +7,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 
 import { OPS_NODES, type NodeDef } from "./opsNodes";
 
@@ -15,6 +15,48 @@ export type { NodeDef };
 export { OPS_NODES };
 
 const CENTER: [number, number, number] = [0, 0, 0];
+
+/* Soft radial texture — the lightweight "bloom" used by glow sprites. */
+let sharedGlow: THREE.Texture | null = null;
+function glowTexture(): THREE.Texture {
+  if (sharedGlow) return sharedGlow;
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.22, "rgba(255,255,255,0.6)");
+  g.addColorStop(0.55, "rgba(255,255,255,0.16)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  sharedGlow = new THREE.CanvasTexture(c);
+  return sharedGlow;
+}
+
+function Glow({ color, scale, opacity }: { color: string; scale: number; opacity: number }) {
+  return (
+    <sprite scale={scale}>
+      <spriteMaterial
+        map={glowTexture()}
+        color={color}
+        transparent
+        opacity={opacity}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </sprite>
+  );
+}
+
+/* Slow orbit of the whole node graph — depth becomes unmistakable. */
+function Orbit({ children }: { children: ReactNode }) {
+  const g = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (g.current) g.current.rotation.y = clock.getElapsedTime() * 0.05;
+  });
+  return <group ref={g}>{children}</group>;
+}
 
 interface Edge {
   a: [number, number, number];
@@ -28,6 +70,8 @@ export interface OpsSceneProps {
   variant?: "core" | "ring";
   quality?: "high" | "medium";
   frameloop?: "always" | "never" | "demand";
+  /** Called if the WebGL context is lost at runtime (host swaps to SVG). */
+  onContextLost?: () => void;
 }
 
 /* ── window pointer (canvas itself ignores pointer events) ── */
@@ -59,26 +103,52 @@ function PointerRig() {
 function Core() {
   const wire = useRef<THREE.Mesh>(null);
   const inner = useRef<THREE.MeshStandardMaterial>(null);
+  const halo = useRef<THREE.Sprite>(null);
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
     if (wire.current) {
       wire.current.rotation.y = t * 0.22;
       wire.current.rotation.z = t * 0.1;
     }
-    if (inner.current) inner.current.emissiveIntensity = 1.2 + Math.sin(t * 1.6) * 0.4;
+    if (inner.current) inner.current.emissiveIntensity = 1.35 + Math.sin(t * 1.6) * 0.45;
+    if (halo.current) {
+      const s = 5.4 + Math.sin(t * 1.2) * 0.35;
+      halo.current.scale.setScalar(s);
+    }
   });
   return (
     <group>
+      {/* additive halo — reads as bloom without a post-processing pass */}
+      <sprite ref={halo} scale={5.4}>
+        <spriteMaterial map={glowTexture()} color="#2f6bff" transparent opacity={0.34} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </sprite>
+      <Glow color="#56D9FF" scale={2.1} opacity={0.5} />
       <mesh ref={wire}>
         <icosahedronGeometry args={[1.15, 1]} />
-        <meshBasicMaterial color="#3E7BFF" wireframe transparent opacity={0.32} />
+        <meshBasicMaterial color="#3E7BFF" wireframe transparent opacity={0.36} />
       </mesh>
       <mesh>
         <sphereGeometry args={[0.6, 32, 32]} />
-        <meshStandardMaterial ref={inner} color="#0b1e45" emissive="#3E7BFF" emissiveIntensity={1.2} roughness={0.2} metalness={0.5} />
+        <meshStandardMaterial ref={inner} color="#0b1e45" emissive="#3E7BFF" emissiveIntensity={1.35} roughness={0.2} metalness={0.5} />
       </mesh>
-      <pointLight color="#3E7BFF" intensity={2.2} distance={14} />
+      <pointLight color="#3E7BFF" intensity={2.6} distance={16} />
     </group>
+  );
+}
+
+/* A dot orbiting a ring of radius R inside the ring's local (tilted) plane. */
+function RingSatellite({ radius, speed, offset, color }: { radius: number; speed: number; offset: number; color: string }) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    const a = clock.getElapsedTime() * speed + offset;
+    ref.current.position.set(Math.cos(a) * radius, Math.sin(a) * radius, 0);
+  });
+  return (
+    <mesh ref={ref}>
+      <sphereGeometry args={[0.045, 8, 8]} />
+      <meshBasicMaterial color={color} transparent opacity={0.95} />
+    </mesh>
   );
 }
 
@@ -89,14 +159,27 @@ function Rings() {
   });
   return (
     <group ref={g}>
-      <mesh rotation={[Math.PI / 2.2, 0, 0]}>
-        <torusGeometry args={[2.1, 0.006, 8, 96]} />
-        <meshBasicMaterial color="#2c4a86" transparent opacity={0.5} />
-      </mesh>
-      <mesh rotation={[Math.PI / 1.7, 0.4, 0]}>
-        <torusGeometry args={[3.1, 0.005, 8, 96]} />
-        <meshBasicMaterial color="#22375f" transparent opacity={0.4} />
-      </mesh>
+      <group rotation={[Math.PI / 2.2, 0, 0]}>
+        <mesh>
+          <torusGeometry args={[2.1, 0.007, 8, 96]} />
+          <meshBasicMaterial color="#2c4a86" transparent opacity={0.55} />
+        </mesh>
+        <RingSatellite radius={2.1} speed={0.5} offset={0} color="#56D9FF" />
+        <RingSatellite radius={2.1} speed={0.5} offset={Math.PI} color="#3E7BFF" />
+      </group>
+      <group rotation={[Math.PI / 1.7, 0.4, 0]}>
+        <mesh>
+          <torusGeometry args={[3.1, 0.006, 8, 96]} />
+          <meshBasicMaterial color="#22375f" transparent opacity={0.42} />
+        </mesh>
+        <RingSatellite radius={3.1} speed={-0.32} offset={1.2} color="#3DDC97" />
+      </group>
+      <group rotation={[Math.PI / 2.6, -0.5, 0.2]}>
+        <mesh>
+          <torusGeometry args={[4.1, 0.005, 8, 96]} />
+          <meshBasicMaterial color="#1d2f55" transparent opacity={0.3} />
+        </mesh>
+      </group>
     </group>
   );
 }
@@ -104,21 +187,24 @@ function Rings() {
 function Node({ def, index }: { def: NodeDef; index: number }) {
   const mesh = useRef<THREE.Mesh>(null);
   const mat = useRef<THREE.MeshStandardMaterial>(null);
+  /* depth-based sizing: nodes nearer the camera read larger and brighter */
+  const depth = 1 + def.pos[2] * 0.07;
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
     if (mesh.current) {
       mesh.current.rotation.y = t * 0.5 + index;
       mesh.current.rotation.x = t * 0.3;
     }
-    if (mat.current) mat.current.emissiveIntensity = 0.55 + Math.sin(t * 2 + index * 1.3) * 0.3;
+    if (mat.current) mat.current.emissiveIntensity = (0.6 + Math.sin(t * 2 + index * 1.3) * 0.3) * depth;
   });
   return (
     <group position={def.pos}>
-      <mesh ref={mesh}>
+      <Glow color={def.color} scale={1.35 * depth} opacity={0.4 * Math.min(depth, 1.25)} />
+      <mesh ref={mesh} scale={depth}>
         <octahedronGeometry args={[0.17, 0]} />
         <meshStandardMaterial ref={mat} color={def.color} emissive={def.color} emissiveIntensity={0.6} roughness={0.3} metalness={0.4} />
       </mesh>
-      <mesh>
+      <mesh scale={depth}>
         <sphereGeometry args={[0.3, 12, 12]} />
         <meshBasicMaterial color={def.color} transparent opacity={0.07} />
       </mesh>
@@ -195,7 +281,7 @@ function Particles() {
   );
 }
 
-export default function OpsCoreScene({ variant = "core", quality = "high", frameloop = "always" }: OpsSceneProps) {
+export default function OpsCoreScene({ variant = "core", quality = "high", frameloop = "always", onContextLost }: OpsSceneProps) {
   const nodes = useMemo(
     () => (quality === "medium" ? OPS_NODES.slice(0, 8) : OPS_NODES),
     [quality]
@@ -228,19 +314,30 @@ export default function OpsCoreScene({ variant = "core", quality = "high", frame
       camera={{ position: [0, 0.6, 11], fov: 38 }}
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
       style={{ pointerEvents: "none", background: "transparent" }}
+      onCreated={({ gl }) => {
+        gl.domElement.addEventListener("webglcontextlost", (e) => {
+          e.preventDefault();
+          onContextLost?.();
+        });
+      }}
       aria-hidden
     >
       <ambientLight intensity={0.55} />
       <directionalLight position={[5, 7, 6]} intensity={1.05} />
+      {/* cyan rim from behind-left — separates nodes from the background */}
+      <directionalLight position={[-6, -3, -5]} intensity={0.5} color="#56D9FF" />
       <PointerRig />
       <group>
         <Core />
         <Rings />
-        {nodes.map((n, i) => (
-          <Node key={n.label} def={n} index={i} />
-        ))}
-        <EdgeLines edges={edges} />
-        <Packets edges={edges} />
+        {/* the node graph slowly orbits so depth reads immediately */}
+        <Orbit>
+          {nodes.map((n, i) => (
+            <Node key={n.label} def={n} index={i} />
+          ))}
+          <EdgeLines edges={edges} />
+          <Packets edges={edges} />
+        </Orbit>
         {quality === "high" && <Particles />}
       </group>
     </Canvas>
