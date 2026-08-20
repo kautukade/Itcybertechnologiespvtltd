@@ -27,3 +27,24 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  edge-functions:
+    name: Validate Supabase Edge Functions (Deno)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # Supabase Edge Functions are Deno code — the frontend tsconfig never
+      # sees them. This check catches syntax/type errors before merge.
+      - name: Typecheck Edge Functions
+        run: |
+          deno check --no-lock \
+            supabase/functions/submit-contact/index.ts \
+            supabase/functions/submit-assessment/index.ts \
+            supabase/functions/submit-career/index.ts

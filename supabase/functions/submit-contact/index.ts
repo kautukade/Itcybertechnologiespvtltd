@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
   );
   if (unknown.length) return json({ error: `Unexpected fields: ${unknown.join(", ")}` }, 400, reqOrigin);
 
-  const  Record<string, string | null> = {};
+  const data: Record<string, string | null> = {};
   for (const [key, max] of Object.entries(ALLOWED)) data[key] = clean(raw[key], max);
 
   const email = data.email;

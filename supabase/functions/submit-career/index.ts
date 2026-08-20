@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
   const unknown = Object.keys(raw).filter((k) => !(k in ALLOWED) && !["elapsed_ms", "referral_link"].includes(k));
   if (unknown.length) return json({ error: `Unexpected fields: ${unknown.join(", ")}` }, 400, reqOrigin);
 
-  const  Record<string, string | null> = {};
+  const data: Record<string, string | null> = {};
   for (const [key, max] of Object.entries(ALLOWED)) data[key] = clean(raw[key], max);
 
   const email = data.email;
