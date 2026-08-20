@@ -19,6 +19,7 @@ import { useSiteSettings } from "../lib/cms";
 import WorkflowRunner from "../components/workflows/WorkflowRunner";
 import OpsDashboard from "../components/workflows/OpsDashboard";
 import AgentMicroDemo from "../components/sections/AgentMicroDemo";
+import { WhatWeBuild, FullStackSection, Lifecycle, SolutionArchitectures } from "../components/sections/BuildSections";
 
 /* ---------------------------------- HERO ----------------------------------- */
 
@@ -64,23 +65,31 @@ function Hero() {
             <Reveal delay={0.25}>
               <p className="mt-6 max-w-xl text-[clamp(1rem,1.5vw,1.15rem)] leading-relaxed text-ink-200">
                 {hp.sub ?? (
-                <>ITCYBER designs and deploys <strong className="text-white font-semibold">custom AI agents</strong>,{" "}
-                <strong className="text-white font-semibold">intelligent automations</strong> and{" "}
-                <strong className="text-white font-semibold">business software</strong> that work across your existing
-                systems — so your team moves faster, repetitive work disappears and operations scale.</>
+                <>ITCYBER designs and develops <strong className="text-white font-semibold">custom software</strong>,{" "}
+                <strong className="text-white font-semibold">intelligent web applications</strong>,{" "}
+                <strong className="text-white font-semibold">business websites</strong>, mobile-ready platforms,{" "}
+                <strong className="text-white font-semibold">AI agents</strong> and automated workflows —
+                connecting everything into one scalable digital system.</>
                 )}
               </p>
             </Reveal>
             <Reveal delay={0.35}>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Button to="/contact" size="lg" arrow>{hp.cta ?? site.cta.consultationLong}</Button>
+                <Button to="/contact" size="lg" arrow>{hp.cta ?? "Discuss Your Project"}</Button>
                 <Button to="/solutions" variant="ghost" size="lg">Explore Our Solutions</Button>
               </div>
-              <Link to="/#demo" className="group mt-5 inline-flex items-center gap-2 font-mono text-[0.74rem] uppercase tracking-[0.16em] text-ink-300 hover:text-cyan-ic transition-colors">
-                <IconPulse size={14} className="text-cyan-ic" />
-                See how it works
-                <span className="h-px w-6 bg-current transition-all duration-300 group-hover:w-10" aria-hidden />
-              </Link>
+              <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2">
+                <Link to="/#build" className="group inline-flex items-center gap-2 font-mono text-[0.74rem] uppercase tracking-[0.16em] text-ink-300 hover:text-cyan-ic transition-colors">
+                  <IconSpark size={14} className="text-cyan-ic" />
+                  See what we build
+                  <span className="h-px w-6 bg-current transition-all duration-300 group-hover:w-10" aria-hidden />
+                </Link>
+                <Link to="/#demo" className="group inline-flex items-center gap-2 font-mono text-[0.74rem] uppercase tracking-[0.16em] text-ink-300 hover:text-cyan-ic transition-colors">
+                  <IconPulse size={14} className="text-brand-400" />
+                  Watch a workflow run
+                  <span className="h-px w-6 bg-current transition-all duration-300 group-hover:w-10" aria-hidden />
+                </Link>
+              </div>
             </Reveal>
             <Reveal delay={0.45}>
               <dl className="mt-10 grid grid-cols-3 gap-4 max-w-md">
