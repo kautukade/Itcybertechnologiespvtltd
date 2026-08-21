@@ -2,12 +2,13 @@ import { useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Reveal, Scramble } from "../lib/motion";
 import { cn } from "../lib/utils";
-import { site, waLink, contactReady, emailReady } from "../data/site";
+import { site } from "../data/site";
+import { useSiteConfig, hasEmail, hasWhatsApp, getWhatsAppLink, getPhoneHref } from "../lib/siteSettings";
 import { Button, Section, SectionHead, Field, TextInput, TextArea, Select, Badge } from "../components/ui";
 import { IconArrow, IconCheck, IconMail, IconPhone, IconWhatsApp, IconChevron, IconClock, IconPin } from "../components/icons";
 import { submitPublic, isEmail, isPhone, readUtm, SUBMIT_ERROR, type SubmissionMeta } from "../lib/leads";
 import { usePageMeta } from "../lib/seo";
-import { industries } from "../data/content";
+import { industries, projectTypes, buildOptions } from "../data/content";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -24,11 +25,12 @@ function metaFrom(elapsed: number): SubmissionMeta {
 
 export default function Contact() {
   usePageMeta({
-    title: "Contact ITCYBER — Tell Us What You Want to Automate",
-    description: "Book a free AI consultation or run the 2-minute automation assessment. ITCYBER builds AI agents, workflow automation and custom software for Indian businesses.",
+    title: "Contact ITCYBER — Tell Us What You Want to Build",
+    description: "Discuss a custom website, web app, business software, mobile app, AI system or automation. Free consultation and a 2-minute project assessment.",
     path: "/contact",
   });
 
+  const cfg = useSiteConfig();
   const [params] = useSearchParams();
   const [tab, setTab] = useState<"form" | "assessment">(params.get("mode") === "assessment" ? "assessment" : "form");
 
@@ -45,12 +47,12 @@ export default function Contact() {
             </p>
           </Reveal>
           <h1 className="font-display font-bold text-white tracking-tight mt-5 text-[clamp(2.1rem,5vw,3.8rem)] leading-[1.05] max-w-3xl">
-            Tell us what you want to <span className="text-brand-400">automate.</span>
+            Tell us what you want to <span className="text-brand-400">build.</span>
           </h1>
           <Reveal delay={0.2}>
             <p className="mt-4 max-w-2xl text-[clamp(1rem,1.5vw,1.15rem)] text-ink-200 leading-relaxed">
-              Two ways in: a detailed project brief, or the 2-minute automation assessment that helps us
-              (and you) understand what's worth automating first.
+              Websites, web apps, business software, mobile apps, AI systems or automation — two ways in:
+              a detailed project brief, or the 2-minute assessment that pins down what matters first.
             </p>
           </Reveal>
           <Reveal delay={0.3}>
@@ -90,30 +92,30 @@ export default function Contact() {
               lead="Every enquiry is read by an engineer, not a routing bot. We reply with an honest read — including when automation isn't the right answer."
             />
             <div className="space-y-3">
-              {emailReady && (
-                <a href={`mailto:${site.contact.email}`} className="flex items-center gap-4 bg-white hairline-light clip-corner p-4 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-20px_rgba(46,99,232,.4)] transition-all duration-300">
+              {hasEmail(cfg) && (
+                <a href={`mailto:${cfg.contact.email}`} className="flex items-center gap-4 bg-white hairline-light clip-corner p-4 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-20px_rgba(46,99,232,.4)] transition-all duration-300">
                   <span className="w-10 h-10 shrink-0 clip-corner bg-brand-500/10 text-brand-600 flex items-center justify-center"><IconMail size={18} /></span>
                   <span>
                     <span className="block font-display font-bold text-ink-900 text-[0.95rem]">Email us</span>
-                    <span className="block text-[0.82rem] text-ink-500">{site.contact.email}</span>
+                    <span className="block text-[0.82rem] text-ink-500">{cfg.contact.email}</span>
                   </span>
                 </a>
               )}
-              {contactReady && (
-                <a href={waLink("Hi ITCYBER — I'd like to discuss AI automation for my business.") ?? undefined} target="_blank" rel="noreferrer" className="flex items-center gap-4 bg-white hairline-light clip-corner p-4 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-20px_rgba(31,175,99,.4)] transition-all duration-300">
+              {hasWhatsApp(cfg) && (
+                <a href={getWhatsAppLink(cfg, "Hi ITCYBER — I'd like to discuss a project with you.") ?? undefined} target="_blank" rel="noreferrer" className="flex items-center gap-4 bg-white hairline-light clip-corner p-4 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_-20px_rgba(31,175,99,.4)] transition-all duration-300">
                   <span className="w-10 h-10 shrink-0 clip-corner bg-[#1FAF63]/12 text-[#1FAF63] flex items-center justify-center"><IconWhatsApp size={18} /></span>
                   <span>
                     <span className="block font-display font-bold text-ink-900 text-[0.95rem]">{site.cta.whatsapp}</span>
-                    <span className="block text-[0.82rem] text-ink-500">{site.contact.phoneDisplay || "Fastest response channel"}</span>
+                    <span className="block text-[0.82rem] text-ink-500">{cfg.contact.phoneDisplay || "Fastest response channel"}</span>
                   </span>
                 </a>
               )}
-              {contactReady && site.contact.phoneHref && (
-                <a href={site.contact.phoneHref} className="flex items-center gap-4 bg-white hairline-light clip-corner p-4 hover:-translate-y-0.5 transition-all duration-300">
+              {getPhoneHref(cfg) && (
+                <a href={getPhoneHref(cfg)} className="flex items-center gap-4 bg-white hairline-light clip-corner p-4 hover:-translate-y-0.5 transition-all duration-300">
                   <span className="w-10 h-10 shrink-0 clip-corner bg-brand-500/10 text-brand-600 flex items-center justify-center"><IconPhone size={18} /></span>
                   <span>
                     <span className="block font-display font-bold text-ink-900 text-[0.95rem]">Call us</span>
-                    <span className="block text-[0.82rem] text-ink-500">{site.contact.phoneDisplay}</span>
+                    <span className="block text-[0.82rem] text-ink-500">{cfg.contact.phoneDisplay}</span>
                   </span>
                 </a>
               )}
@@ -121,8 +123,8 @@ export default function Contact() {
                 <span className="w-10 h-10 shrink-0 clip-corner bg-brand-500/10 text-brand-600 flex items-center justify-center"><IconPin size={18} /></span>
                 <span>
                   <span className="block font-display font-bold text-ink-900 text-[0.95rem]">Based in</span>
-                  <span className="block text-[0.82rem] text-ink-500">{site.contact.address}</span>
-                  <span className="flex items-center gap-1.5 text-[0.78rem] text-ink-500 mt-1"><IconClock size={12} className="text-brand-600" />{site.contact.hours}</span>
+                  <span className="block text-[0.82rem] text-ink-500">{cfg.contact.address}</span>
+                  <span className="flex items-center gap-1.5 text-[0.78rem] text-ink-500 mt-1"><IconClock size={12} className="text-brand-600" />{cfg.contact.hours}</span>
                 </span>
               </div>
             </div>
@@ -149,6 +151,7 @@ const EMPTY_BRIEF = {
 };
 
 function ProjectBrief() {
+  const cfg = useSiteConfig();
   const [form, setForm] = useState(EMPTY_BRIEF);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<Status>("idle");
@@ -166,7 +169,7 @@ function ProjectBrief() {
     if (!form.full_name.trim()) errs.full_name = "Please enter your name";
     if (!isEmail(form.email)) errs.email = "Enter a valid work email";
     if (form.phone && !isPhone(form.phone)) errs.phone = "Phone number looks invalid";
-    if (!form.message.trim()) errs.message = "Tell us briefly what you'd like to automate";
+    if (!form.message.trim()) errs.message = "Tell us briefly what you want to build or improve";
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -213,10 +216,10 @@ function ProjectBrief() {
             {["Just me", "2–10", "11–50", "51–200", "200+"].map((s) => <option key={s} value={s}>{s} people</option>)}
           </Select>
         </Field>
-        <Field label="What would you like to automate?" name="b-interest" tone="paper">
+        <Field label="What are you looking to build?" name="b-interest" tone="paper">
           <Select id="b-interest" tone="paper" value={form.automation_interest} onChange={set("automation_interest")}>
-            <option value="">Select area</option>
-            {["AI Agent", "Workflow Automation", "CRM Automation", "WhatsApp Automation", "Custom Software", "Integrations", "Not sure yet"].map((s) => <option key={s} value={s}>{s}</option>)}
+            <option value="">Select project type</option>
+            {projectTypes.map((s) => <option key={s} value={s}>{s}</option>)}
           </Select>
         </Field>
         <Field label="Current tools" name="b-tools" tone="paper">
@@ -240,13 +243,13 @@ function ProjectBrief() {
         </div>
         <div className="sm:col-span-2">
           <Field label="Message *" name="b-message" tone="paper" error={errors.message}>
-            <TextArea id="b-message" tone="paper" error={!!errors.message} value={form.message} onChange={set("message")} placeholder="Describe the workflow that eats your team's time…" />
+            <TextArea id="b-message" tone="paper" error={!!errors.message} value={form.message} onChange={set("message")} placeholder="Describe your project, business problem, required features, existing systems or automation needs…" />
           </Field>
         </div>
         <div className="sm:col-span-2 flex flex-wrap items-center gap-4">
           <Button type="submit" size="lg" loading={status === "loading"} arrow>Submit Request</Button>
-          {contactReady && (
-            <Button type="button" href={waLink("Hi ITCYBER — sending my project brief via WhatsApp instead.") ?? undefined} variant="ghost" size="lg">WhatsApp Us</Button>
+          {hasWhatsApp(cfg) && (
+            <Button type="button" href={getWhatsAppLink(cfg, "Hi ITCYBER — sending my project brief via WhatsApp instead.") ?? undefined} variant="ghost" size="lg">WhatsApp Us</Button>
           )}
           <Button to="/contact?mode=assessment" variant="ghost" size="lg">Book Consultation via Assessment</Button>
         </div>
@@ -341,8 +344,8 @@ function AssessmentWizard() {
         </div>
 
         {step === 0 && (
-          <div className="grid sm:grid-cols-2 gap-3">
-            {["AI Agent", "Workflow Automation", "CRM Automation", "WhatsApp Automation", "Custom Software", "Not sure yet"].map((v) => (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {buildOptions.map((v) => (
               <button key={v} className={chip(v)} onClick={() => setA((x) => ({ ...x, requirement: v }))}>{v}</button>
             ))}
           </div>
@@ -444,6 +447,15 @@ function AssessmentWizard() {
 
 /* ─────────────────────────── shared success card ─────────────────────────── */
 
+function SuccessWhatsApp() {
+  const cfg = useSiteConfig();
+  const link = getWhatsAppLink(cfg, "Hi ITCYBER — I just submitted my enquiry on the website.");
+  if (!link) return null;
+  return (
+    <Button href={link} variant="ghost">Continue on WhatsApp</Button>
+  );
+}
+
 function SuccessCard({ name, email, what }: { name: string; email: string; what: string }) {
   return (
     <div className="bg-white hairline-light clip-corner p-8 sm:p-10 text-center">
@@ -457,7 +469,7 @@ function SuccessCard({ name, email, what }: { name: string; email: string; what:
       </p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
         <Button to="/" variant="light">Back to Home</Button>
-        {contactReady && <Button href={waLink("Hi ITCYBER — I just submitted my enquiry on the website.") ?? undefined} variant="ghost">Continue on WhatsApp</Button>}
+        <SuccessWhatsApp />
       </div>
     </div>
   );

@@ -1,22 +1,40 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { site, waLink } from "../../data/site";
+import { site } from "../../data/site";
+import { useSiteConfig, getWhatsAppLink } from "../../lib/siteSettings";
 import { IconWhatsApp } from "../icons";
 import { cn } from "../../lib/utils";
 import { useReducedMotion } from "../../lib/motion";
 
-/** Scroll restoration between routes (instant, no jarring smooth scroll). */
+/**
+ * Scroll restoration between routes. Hash targets get a bounded retry loop
+ * because lazy-loaded routes may not contain the anchor on the first frame.
+ * scroll-mt-* utilities on sections handle the sticky-navbar offset.
+ */
 export function ScrollToTop() {
   const { pathname, hash } = useLocation();
   useEffect(() => {
-    if (hash) {
+    if (!hash) {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
+    let raf = 0;
+    let tries = 0;
+    const attempt = () => {
       const el = document.querySelector(hash);
       if (el) {
         el.scrollIntoView({ behavior: "auto", block: "start" });
         return;
       }
-    }
-    window.scrollTo({ top: 0, behavior: "auto" });
+      if (++tries < 45) raf = requestAnimationFrame(attempt); // ~0.75s bound, no infinite loop
+    };
+    const timer = window.setTimeout(() => {
+      raf = requestAnimationFrame(attempt);
+    }, 50);
+    return () => {
+      window.clearTimeout(timer);
+      cancelAnimationFrame(raf);
+    };
   }, [pathname, hash]);
   return null;
 }
@@ -45,6 +63,7 @@ export function ScrollProgress() {
  *  Hidden entirely when the company WhatsApp number isn't configured. */
 export function WhatsAppFloat() {
   const [show, setShow] = useState(false);
+  const cfg = useSiteConfig();
   useEffect(() => {
     const onScroll = () => setShow(window.scrollY > 480);
     onScroll();
@@ -52,7 +71,7 @@ export function WhatsAppFloat() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const link = waLink("Hi ITCYBER — I'd like to discuss AI automation for my business.");
+  const link = getWhatsAppLink(cfg, "Hi ITCYBER — I'd like to discuss a project with you.");
   if (!link) return null;
 
   return (

@@ -8,17 +8,22 @@ import { IconArrow, IconChevron } from "./icons";
 
 /* --------------------------------- Button ---------------------------------- */
 
-type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+type BtnProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick"> & {
   variant?: "primary" | "ghost" | "light" | "dark" | "whatsapp";
   size?: "sm" | "md" | "lg";
   loading?: boolean;
   to?: string;
   href?: string;
   arrow?: boolean;
+  /** element-agnostic so the same handler works on <button>, <Link> and <a> */
+  onClick?: (e: React.MouseEvent<HTMLElement>) => void;
+  /** forwarded to <a> renders (external links, tel:, mailto:) */
+  target?: string;
+  download?: string | boolean;
 };
 
 export const Button = forwardRef<HTMLButtonElement, BtnProps>(function Button(
-  { variant = "primary", size = "md", loading, to, href, arrow, className, children, disabled, ...rest },
+  { variant = "primary", size = "md", loading, to, href, arrow, className, children, disabled, onClick, title, target, rel, download, type, ...rest },
   ref
 ) {
   const sizes = {
@@ -58,10 +63,33 @@ export const Button = forwardRef<HTMLButtonElement, BtnProps>(function Button(
     </>
   );
 
-  if (to) return <Link to={to} className={cls}>{inner}</Link>;
-  if (href) return <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className={cls}>{inner}</a>;
+  /* onClick / aria-* / data-* / title / target / rel / download must survive on
+     Link and anchor renders too — previously only <button> received them, which
+     silently dropped handlers like the mobile-menu close action. */
+  if (to)
+    return (
+      <Link to={to} className={cls} onClick={onClick} title={title}>
+        {inner}
+      </Link>
+    );
+  if (href) {
+    const external = href.startsWith("http");
+    return (
+      <a
+        href={href}
+        target={target ?? (external ? "_blank" : undefined)}
+        rel={rel ?? (external ? "noreferrer" : undefined)}
+        className={cls}
+        onClick={onClick}
+        title={title}
+        download={download}
+      >
+        {inner}
+      </a>
+    );
+  }
   return (
-    <button ref={ref} className={cls} disabled={disabled || loading} {...rest}>
+    <button ref={ref} type={type ?? "button"} className={cls} disabled={disabled || loading} onClick={onClick} title={title} {...rest}>
       {inner}
     </button>
   );

@@ -2,7 +2,8 @@ import { useMemo, useRef, useState } from "react";
 import { Reveal, Scramble } from "../lib/motion";
 import { cn } from "../lib/utils";
 import { jobs as fallbackJobs, type Job } from "../data/content";
-import { site, emailReady } from "../data/site";
+import { site } from "../data/site";
+import { useSiteConfig, hasCareersEmail } from "../lib/siteSettings";
 import { Button, Section, SectionHead, Field, TextInput, TextArea, Select, Tabs, Badge } from "../components/ui";
 import { IconArrow, IconCheck, IconChevron, IconClock, IconPin, IconMail, IconDoc } from "../components/icons";
 import { submitPublic, uploadResume, resumeUploadReady, isEmail, isPhone, SUBMIT_ERROR, type SubmissionMeta } from "../lib/leads";
@@ -44,6 +45,7 @@ const whyJoin = [
 ];
 
 export default function Careers() {
+  const cfg = useSiteConfig();
   const { data: rawJobs, live } = useCollection("jobs", fallbackJobs as unknown as JobRow[]);
   const jobs = useMemo(() => toUi(rawJobs).filter((j) => j.open !== false), [rawJobs]);
   const openCount = jobs.length;
@@ -86,8 +88,8 @@ export default function Careers() {
               <a href="#roles" className="inline-flex items-center gap-2 bg-brand-500 text-white font-display font-semibold px-6 h-11 clip-corner hover:bg-brand-400 transition-colors">
                 View Open Roles <IconArrow size={15} />
               </a>
-              {emailReady && site.contact.careersEmail && (
-                <Button href={`mailto:${site.contact.careersEmail}`} variant="ghost">Email {site.contact.careersEmail}</Button>
+              {hasCareersEmail(cfg) && (
+                <Button href={`mailto:${cfg.contact.careersEmail}`} variant="ghost">Email {cfg.contact.careersEmail}</Button>
               )}
             </div>
           </Reveal>
@@ -198,8 +200,8 @@ export default function Careers() {
                             </div>
                             <div className="lg:w-44 flex lg:flex-col gap-3 lg:justify-start">
                               <Button size="md" onClick={() => { setApplyingFor(j); document.getElementById("apply")?.scrollIntoView({ behavior: "smooth" }); }} arrow>Apply</Button>
-                              {emailReady && site.contact.careersEmail && (
-                                <Button size="md" variant="ghost" href={`mailto:${site.contact.careersEmail}?subject=Referral: ${j.title}`}>Refer someone</Button>
+                              {hasCareersEmail(cfg) && (
+                                <Button size="md" variant="ghost" href={`mailto:${cfg.contact.careersEmail}?subject=Referral: ${j.title}`}>Refer someone</Button>
                               )}
                             </div>
                           </div>
@@ -227,6 +229,7 @@ const EMPTY_APP = {
 };
 
 function ApplicationForm({ jobs, role, onRoleChange }: { jobs: Job[]; role: Job | null; onRoleChange: (j: Job) => void }) {
+  const cfg = useSiteConfig();
   const [form, setForm] = useState({ ...EMPTY_APP, role: jobs[0]?.id ?? "" });
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -313,11 +316,11 @@ function ApplicationForm({ jobs, role, onRoleChange }: { jobs: Job[]; role: Job 
             title={<>Tell us what you've <span className="text-brand-600">built.</span></>}
             lead="Portfolios and tinkering beat resumes. Link anything real — a workflow, an app, a GitHub, a Notion doc."
           />
-          {emailReady && site.contact.careersEmail && (
+          {hasCareersEmail(cfg) && (
             <Reveal delay={0.15}>
               <p className="mt-6 flex items-center gap-2.5 text-[0.86rem] text-ink-500">
                 <IconMail size={15} className="text-brand-600" /> Prefer email? Write to{" "}
-                <a className="text-brand-600 underline underline-offset-4" href={`mailto:${site.contact.careersEmail}`}>{site.contact.careersEmail}</a>
+                <a className="text-brand-600 underline underline-offset-4" href={`mailto:${cfg.contact.careersEmail}`}>{cfg.contact.careersEmail}</a>
               </p>
             </Reveal>
           )}

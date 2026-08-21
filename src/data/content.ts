@@ -1043,6 +1043,6 @@ export const resources = [
 /* ---------------------------------- insights --------------------------------- */
 
 export const capabilitiesIntro = {
-  heading: "One team for the entire stack of intelligent business.",
-  text: "AI agents do the thinking, automation does the moving, integrations do the connecting, and custom software gives your team control. Most partners sell one slice — we deliver the system.",
+  heading: "One team for everything your business runs on.",
+  text: "Websites and apps meet your customers, custom software runs the operation, AI systems do the thinking, and automation keeps everything moving. Most partners sell one slice — we design, build, integrate and automate the whole system.",
 };

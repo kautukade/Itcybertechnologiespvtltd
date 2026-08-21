@@ -11,6 +11,7 @@ import { Button, Section, SectionHead, Badge, IconTile, Tabs, CtaBand } from "..
 import {
   IconArrow, IconArrowUpRight, IconAgent, IconFlow, IconCode, IconPlug, IconShield,
   IconCheck, IconCompass, IconBlueprint, IconRoute, IconLayers, IconGrowth, IconSpark, IconPulse,
+  IconGlobe, IconDevice,
 } from "../components/icons";
 import HeroVisual from "../components/sections/HeroVisual";
 import EcosystemVisual from "../components/sections/EcosystemVisual";
@@ -296,6 +297,75 @@ function MiniAutomationFlow() {
   );
 }
 
+/* Compact website product visual for the Web capability (keyed visual, no index coupling). */
+function BrowserThumb() {
+  return (
+    <div className="relative" aria-hidden>
+      <div className="absolute -inset-6 rounded-full bg-brand-500/[.08] blur-[60px]" />
+      <div className="relative bg-ink-900 hairline clip-corner overflow-hidden">
+        <div className="flex items-center gap-2.5 px-3.5 h-8 border-b border-white/[.07] bg-ink-850">
+          <span className="flex gap-1">
+            <span className="w-2 h-2 rounded-full bg-rose-ic/70" />
+            <span className="w-2 h-2 rounded-full bg-amber-ic/70" />
+            <span className="w-2 h-2 rounded-full bg-signal/70" />
+          </span>
+          <span className="flex-1 h-5 bg-ink-950 hairline flex items-center px-2 font-mono text-[0.55rem] text-ink-400 truncate">
+            https://your-business.in
+          </span>
+        </div>
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-display font-bold text-white text-[0.8rem]">YourBusiness<span className="text-brand-400">.</span></span>
+            <span className="flex gap-1.5" >
+              <span className="w-7 h-1.5 bg-ink-600" /><span className="w-7 h-1.5 bg-ink-600" /><span className="w-7 h-1.5 bg-ink-600" />
+            </span>
+          </div>
+          <p className="mt-3 font-display font-bold text-white text-[1.05rem] leading-snug max-w-[75%]">
+            A website that <span className="text-cyan-ic">works</span>, not just exists.
+          </p>
+          <span className="mt-3 inline-flex bg-brand-500 text-white font-display font-semibold text-[0.62rem] px-2.5 h-7 items-center clip-corner">Get a proposal</span>
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            <span className="font-mono text-[0.52rem] uppercase px-1.5 py-1 bg-ink-950 hairline text-signal">lead → CRM</span>
+            <span className="font-mono text-[0.52rem] uppercase px-1.5 py-1 bg-ink-950 hairline text-cyan-ic">WhatsApp follow-up</span>
+            <span className="font-mono text-[0.52rem] uppercase px-1.5 py-1 bg-ink-950 hairline text-brand-300">CMS + admin</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Compact mobile/PWA product visual for the Apps capability. */
+function DeviceThumb() {
+  return (
+    <div className="relative flex justify-center py-2" aria-hidden>
+      <div className="absolute -inset-6 rounded-full bg-cyan-ic/[.06] blur-[60px]" />
+      <div className="relative w-40 bg-ink-800 hairline rounded-[1.4rem] p-2.5">
+        <div className="bg-ink-950 hairline rounded-[1rem] p-3">
+          <div className="flex items-center justify-between">
+            <span className="w-10 h-1.5 bg-ink-600 rounded-full" />
+            <span className="w-1.5 h-1.5 rounded-full bg-signal anim-pulse-dot" />
+          </div>
+          <p className="mt-3 font-display font-bold text-white text-[0.78rem] leading-tight">Ops app</p>
+          <div className="mt-2 space-y-1.5">
+            <span className="block h-1.5 w-full bg-ink-700 rounded-full" />
+            <span className="block h-1.5 w-4/5 bg-ink-700 rounded-full" />
+            <span className="block h-1.5 w-3/5 bg-ink-700 rounded-full" />
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-1.5">
+            <span className="h-8 bg-brand-500/20 border border-brand-500/40 rounded-md" />
+            <span className="h-8 bg-ink-800 hairline rounded-md" />
+            <span className="h-8 bg-ink-800 hairline rounded-md" />
+          </div>
+          <span className="mt-3 flex justify-center"><span className="w-10 h-1 bg-ink-600 rounded-full" /></span>
+        </div>
+      </div>
+      <div className="absolute right-0 top-8 sm:right-4 font-mono text-[0.55rem] uppercase px-2 py-1 bg-ink-900 hairline text-cyan-ic clip-corner">installable · offline-ready</div>
+      <div className="absolute left-0 bottom-10 sm:left-4 font-mono text-[0.55rem] uppercase px-2 py-1 bg-ink-900 hairline text-signal clip-corner">push + sync</div>
+    </div>
+  );
+}
+
 function IntegrationOrbit() {
   const inner = ["WhatsApp", "CRM", "Email", "Calendar"];
   const outer = ["ERP", "Payments", "Sheets", "APIs", "Database", "Telephony"];
@@ -341,44 +411,61 @@ function Capabilities() {
     const id = setInterval(() => setAgentsIdx((v) => (v + 1) % 4), 1600);
     return () => clearInterval(id);
   }, []);
-  const capIcons = [<IconAgent key="a" size={22} />, <IconFlow key="f" size={22} />, <IconCode key="c" size={22} />, <IconPlug key="p" size={22} />];
+  /* Keyed by category id — never index-based, so a 5th (or Nth) category can
+     never render an undefined icon or a mismatched visual. */
+  const CAP_ICONS: Record<string, React.ReactNode> = {
+    ai: <IconAgent size={22} />,
+    software: <IconCode size={22} />,
+    web: <IconGlobe size={22} />,
+    apps: <IconDevice size={22} />,
+    automation: <IconFlow size={22} />,
+  };
 
-  const visuals = [
-    /* agents: rotating agent chips */
-    <div key="v0" className="space-y-2" aria-hidden>
-      {agents.slice(0, 4).map((a, i) => (
-        <div key={a.id} className={cn("flex items-center justify-between gap-3 p-3 clip-corner border transition-all duration-500", i === agentsIdx ? "border-brand-400/70 bg-brand-500/[.08] translate-x-1" : "border-white/[.08] bg-ink-850/60")}>
-          <span className="flex items-center gap-2.5">
-            <span className={cn("w-1.5 h-1.5 rounded-full", i === agentsIdx ? "bg-signal anim-pulse-dot" : "bg-ink-500")} />
-            <span className={cn("font-display font-semibold text-[0.9rem]", i === agentsIdx ? "text-white" : "text-ink-200")}>{a.name}</span>
-          </span>
-          <span className="font-mono text-[0.6rem] uppercase tracking-[0.12em] text-ink-400">{a.role}</span>
-        </div>
-      ))}
-    </div>,
-    /* automation builder */
-    <div key="v1" className="bg-ink-950/70 hairline clip-corner p-5">
-      <p className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-ink-400 mb-4">workflow builder · lead-response.run</p>
-      <MiniAutomationFlow />
-      <div className="mt-5 grid grid-cols-3 gap-2 font-mono text-[0.6rem] text-ink-300" aria-hidden>
-        <p className="hairline p-2">runs today<br /><span className="text-white text-[0.9rem] font-display font-bold">312</span></p>
-        <p className="hairline p-2">fail rate<br /><span className="text-signal text-[0.9rem] font-display font-bold">0.3%</span></p>
-        <p className="hairline p-2">hours saved<br /><span className="text-cyan-ic text-[0.9rem] font-display font-bold">41/wk</span></p>
+  const CAP_VISUALS: Record<string, React.ReactNode> = {
+    /* AI: live agent activity */
+    ai: (
+      <div key="v-ai" className="space-y-2" aria-hidden>
+        {agents.slice(0, 4).map((a, i) => (
+          <div key={a.id} className={cn("flex items-center justify-between gap-3 p-3 clip-corner border transition-all duration-500", i === agentsIdx ? "border-brand-400/70 bg-brand-500/[.08] translate-x-1" : "border-white/[.08] bg-ink-850/60")}>
+            <span className="flex items-center gap-2.5">
+              <span className={cn("w-1.5 h-1.5 rounded-full", i === agentsIdx ? "bg-signal anim-pulse-dot" : "bg-ink-500")} />
+              <span className={cn("font-display font-semibold text-[0.9rem]", i === agentsIdx ? "text-white" : "text-ink-200")}>{a.name}</span>
+            </span>
+            <span className="font-mono text-[0.6rem] uppercase tracking-[0.12em] text-ink-400">{a.role}</span>
+          </div>
+        ))}
+        <p className="pt-1 font-mono text-[0.56rem] uppercase tracking-[0.12em] text-ink-500">decision traces · human handoff · UI demo</p>
       </div>
-      <p className="mt-2 font-mono text-[0.56rem] uppercase tracking-[0.12em] text-ink-500">UI demo values</p>
-    </div>,
-    /* dashboard mock */
-    <div key="v2"><OpsDashboard /></div>,
-    /* integrations orbit */
-    <div key="v3" className="py-4"><EcosystemVisual /></div>,
-  ];
+    ),
+    /* Software: live business dashboard */
+    software: (
+      <div key="v-software"><OpsDashboard /></div>
+    ),
+    /* Web: website product mock */
+    web: <BrowserThumb key="v-web" />,
+    /* Apps: mobile/PWA product mock */
+    apps: <DeviceThumb key="v-apps" />,
+    /* Automation: trigger → AI → CRM → WhatsApp → report */
+    automation: (
+      <div key="v-automation" className="bg-ink-950/70 hairline clip-corner p-5">
+        <p className="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-ink-400 mb-4">workflow builder · lead-response.run</p>
+        <MiniAutomationFlow />
+        <div className="mt-5 grid grid-cols-3 gap-2 font-mono text-[0.6rem] text-ink-300" aria-hidden>
+          <p className="hairline p-2">runs today<br /><span className="text-white text-[0.9rem] font-display font-bold">312</span></p>
+          <p className="hairline p-2">fail rate<br /><span className="text-signal text-[0.9rem] font-display font-bold">0.3%</span></p>
+          <p className="hairline p-2">hours saved<br /><span className="text-cyan-ic text-[0.9rem] font-display font-bold">41/wk</span></p>
+        </div>
+        <p className="mt-2 font-mono text-[0.56rem] uppercase tracking-[0.12em] text-ink-500">UI demo values</p>
+      </div>
+    ),
+  };
 
   return (
-    <Section tone="deeper" className="noise">
+    <Section tone="deeper" id="build" className="noise scroll-mt-20">
       <div className="absolute inset-0 grid-bg opacity-40" aria-hidden />
       <div className="relative wrap">
         <SectionHead
-          eyebrow="core capabilities"
+          eyebrow="what we build"
           title={capabilitiesIntro.heading}
           lead={capabilitiesIntro.text}
         />
@@ -389,7 +476,7 @@ function Capabilities() {
                 <div className="absolute top-0 bottom-0 left-0 w-[2px] bg-gradient-to-b from-brand-500 to-cyan-ic opacity-0 group-hover:opacity-100 transition-opacity duration-500" aria-hidden />
                 <div className={cn(i % 2 === 1 && "lg:order-2")}>
                   <div className="flex items-center gap-4">
-                    <IconTile>{capIcons[i]}</IconTile>
+                    <IconTile>{CAP_ICONS[cat.id]}</IconTile>
                     <span className="font-mono text-[0.66rem] tracking-[0.24em] text-ink-400">/{cat.index}</span>
                   </div>
                   <h3 className="font-display font-bold text-white text-[clamp(1.4rem,2.6vw,2rem)] tracking-tight mt-4">{cat.title}</h3>
@@ -408,7 +495,7 @@ function Capabilities() {
                     <IconArrow size={15} className="transition-transform duration-300 group-hover/link:translate-x-1" />
                   </Link>
                 </div>
-                <div className={cn(i % 2 === 1 && "lg:order-1")}>{visuals[i]}</div>
+                <div className={cn(i % 2 === 1 && "lg:order-1")}>{CAP_VISUALS[cat.id]}</div>
               </article>
             </Reveal>
           ))}
@@ -876,7 +963,9 @@ export default function Home() {
       <FunctionSolutions />
       <IndustriesStrip />
       <WorkTeaser />
+      <FullStackSection />
       <TechEcosystem />
+      <Lifecycle />
       <Process />
       <WhyItcyber />
       <Security />

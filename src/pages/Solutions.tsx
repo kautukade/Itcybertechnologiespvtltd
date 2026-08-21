@@ -1,16 +1,48 @@
+import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Reveal, Scramble } from "../lib/motion";
-import { industries } from "../data/content";
+import { industries as staticIndustries, type Industry } from "../data/content";
 import { Button, Section, SectionHead, CtaBand, Accordion, Badge } from "../components/ui";
 import { IconArrow, IconArrowUpRight, IconCheck, IconShield } from "../components/icons";
 import { site } from "../data/site";
+import { useCollection } from "../lib/cms";
+import type { IndustryRow } from "../types/db";
+import NotFound from "./NotFound";
+
+/** Live published industries from the CMS, with the bundled data as fallback.
+ *  A newly published industry renders at /solutions/<slug> without code changes. */
+function useIndustries(): Industry[] {
+  const { data } = useCollection("industries", staticIndustries as unknown as IndustryRow[]);
+  return useMemo(
+    () =>
+      data.map((r) => {
+        if (!("hero_description" in r)) return r as unknown as Industry;
+        const row = r as IndustryRow;
+        return {
+          slug: row.slug,
+          name: row.name,
+          short: row.short_description ?? "",
+          challenges: (row.challenges_json as string[]) ?? [],
+          opportunities: (row.opportunities_json as string[]) ?? [],
+          automations: (row.automations_json as string[]) ?? [],
+          workflow: (row.workflow_json as string[]) ?? [],
+          integrations: (row.integrations_json as string[]) ?? [],
+          agents: (row.agents_json as string[]) ?? [],
+          faq: (row.faq_json as { q: string; a: string }[]) ?? [],
+        };
+      }),
+    [data]
+  );
+}
 
 /* ------------------------------ industry detail ------------------------------ */
 
 export function IndustryPage() {
   const { slug } = useParams();
+  const industries = useIndustries();
   const ind = industries.find((i) => i.slug === slug);
-  if (!ind) return <SolutionsIndex />;
+  /* Unknown slug → real 404, never a silent redirect to the index. */
+  if (!ind) return <NotFound />;
   const idx = industries.indexOf(ind);
 
   return (
@@ -181,6 +213,7 @@ export function IndustryPage() {
 /* ------------------------------- solutions index ------------------------------ */
 
 export default function SolutionsIndex() {
+  const industries = useIndustries();
   return (
     <>
       <section className="relative bg-ink-950 text-ink-100 overflow-hidden noise">

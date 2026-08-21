@@ -80,16 +80,11 @@ export const site: SiteConfig = {
   },
 };
 
-/* ── guards: never expose unconfigured contact channels publicly ── */
-export const isPhoneConfigured = (n: string) => /^\d{10,15}$/.test(n);
-export const contactReady = isPhoneConfigured(site.contact.whatsappNumber);
-export const emailReady = site.contact.email.trim().length > 3;
-
-/** Returns null when WhatsApp isn't configured — callers must hide the CTA. */
-export const waLink = (message: string): string | null =>
-  contactReady
-    ? `https://wa.me/${site.contact.whatsappNumber}?text=${encodeURIComponent(message)}`
-    : null;
+/* ── NOTE: contact-channel guards live in src/lib/siteSettings.ts and are
+     evaluated at RUNTIME against the merged (admin-editable) config. The old
+     module-load-time constants (contactReady / emailReady / waLink) were
+     removed on purpose: they froze env values and ignored Admin → Settings
+     updates. Use useSiteConfig() + hasEmail / hasWhatsApp / getWhatsAppLink. ── */
 
 export const nav = {
   primary: [

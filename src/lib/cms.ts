@@ -1,13 +1,24 @@
 /**
  * CMS read layer for the public site.
- * When Supabase is configured, published content is fetched live;
- * otherwise the bundled data acts as a fully functional fallback.
+ *
+ * Contract:
+ *  - `configured` — Supabase env vars are present (a client could be created).
+ *  - `source: "live"` — ONLY after the query actually succeeded. UI may show
+ *    "live" badges only in this state.
+ *  - `source: "fallback"` — Supabase absent OR the query failed; bundled
+ *    static content renders so the site never blanks. `error` retains the
+ *    diagnostic message.
+ *
+ * Table awareness: the `published` filter and `sort_order` ordering are only
+ * applied to tables that actually have those columns (applying them blindly
+ * to e.g. `social_links` produces query errors and silent fallbacks).
  */
 import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import type { Database, TableName } from "../types/db";
 import { site as staticSite, type SiteConfig } from "../data/site";
+import { getSiteConfig, setSiteConfig, useSiteConfig } from "./siteSettings";
 
 type Tables = Database["public"]["Tables"];
 type RowOf<T extends TableName> = Tables[T]["Row"];
@@ -15,42 +26,81 @@ type RowOf<T extends TableName> = Tables[T]["Row"];
 /** Dynamic-table operations use the loosely typed client; rows are cast at the boundary. */
 const sb = supabase as unknown as SupabaseClient | null;
 
-/** Public read: published rows only (matches RLS), ordered by sort_order when present. */
+/** Tables with a `published` boolean (RLS already exposes only published rows). */
+const PUBLISHED_TABLES = new Set<string>([
+  "services",
+  "ai_agents",
+  "automations",
+  "industries",
+  "case_studies",
+  "resources",
+  "jobs",
+  "technologies",
+]);
+
+/** Tables ordered by sort_order — the published set plus social_links. */
+const SORTABLE_TABLES = new Set<string>([...PUBLISHED_TABLES, "social_links"]);
+
+export interface CollectionState<T> {
+  data: T[];
+  loading: boolean;
+  configured: boolean;
+  error: string | null;
+  source: "live" | "fallback";
+  /** convenience alias for source === "live" */
+  live: boolean;
+}
+
 export function useCollection<T extends TableName>(
   table: T,
-  fallback: RowOf<T>[],
-  opts: { published?: boolean } = {}
-) {
-  const { published = true } = opts;
-  const [data, setData] = useState<RowOf<T>[]>(fallback);
-  const [loading, setLoading] = useState(false);
+  fallback: RowOf<T>[]
+): CollectionState<RowOf<T>> {
+  const [state, setState] = useState<{
+    rows: RowOf<T>[];
+    loading: boolean;
+    error: string | null;
+    source: "live" | "fallback";
+  }>({ rows: fallback, loading: sb !== null, error: null, source: "fallback" });
 
   useEffect(() => {
-    let cancelled = false;
     if (!sb) return;
-    setLoading(true);
+    let cancelled = false;
     (async () => {
       let query = sb.from(table).select("*");
-      if (published) query = query.eq("published", true);
-      if (!["profiles", "admin_activity_logs"].includes(table)) query = query.order("sort_order", { ascending: true });
-      const { data: rows, error } = await query;
-      if (!cancelled) {
-        if (!error && rows) setData(rows as RowOf<T>[]);
-        setLoading(false);
+      if (PUBLISHED_TABLES.has(table)) query = query.eq("published", true);
+      if (SORTABLE_TABLES.has(table)) query = query.order("sort_order", { ascending: true });
+      const { data, error } = await query;
+      if (cancelled) return;
+      if (error || !data) {
+        setState({ rows: fallback, loading: false, error: error?.message ?? "No data returned", source: "fallback" });
+      } else {
+        setState({ rows: data as RowOf<T>[], loading: false, error: null, source: "live" });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [table, published]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table]);
 
-  return { data, loading, live: sb !== null };
+  return {
+    data: state.rows,
+    loading: state.loading,
+    configured: sb !== null,
+    error: state.error,
+    source: state.source,
+    live: state.source === "live",
+  };
 }
 
-/** Site settings merged over static/env defaults (single row in DB). */
-export function useSiteSettings(): SiteConfig & { live: boolean; loading: boolean } {
-  const [merged, setMerged] = useState<SiteConfig>(staticSite);
+/**
+ * Site settings merged over static/env defaults (single row in DB).
+ * Also pushes the merged config into the runtime store so every component
+ * using `useSiteConfig()` re-renders with admin-updated contact details.
+ */
+export function useSiteSettings(): SiteConfig & { live: boolean; loading: boolean; source: "live" | "fallback" } {
   const [loading, setLoading] = useState(false);
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
     if (!sb) return;
@@ -58,7 +108,8 @@ export function useSiteSettings(): SiteConfig & { live: boolean; loading: boolea
     (async () => {
       const { data } = await sb.from("site_settings").select("*").limit(1).maybeSingle();
       if (data) {
-        setMerged((prev) => ({
+        const prev = getSiteConfig();
+        setSiteConfig({
           ...prev,
           contact: {
             ...prev.contact,
@@ -74,13 +125,18 @@ export function useSiteSettings(): SiteConfig & { live: boolean; loading: boolea
           description: data.description ?? prev.description,
           _homepage: data.homepage ?? prev._homepage,
           _navigation: data.navigation ?? prev._navigation,
-        }));
+        });
+        setLive(true);
       }
       setLoading(false);
     })();
   }, []);
 
-  return useMemo(() => ({ ...merged, live: sb !== null, loading }), [merged, loading]);
+  const merged = useSiteConfig();
+  return useMemo(
+    () => ({ ...merged, live, loading, source: live ? ("live" as const) : ("fallback" as const) }),
+    [merged, live, loading]
+  );
 }
 
 export interface LiveAnnouncement {
