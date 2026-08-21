@@ -14,6 +14,8 @@ const Services = React.lazy(() => import("./pages/Services"));
 const Agents = React.lazy(() => import("./pages/Agents"));
 const Automations = React.lazy(() => import("./pages/Automations"));
 const Software = React.lazy(() => import("./pages/Software"));
+const WebDevelopment = React.lazy(() => import("./pages/WebDevelopment"));
+const AppDevelopment = React.lazy(() => import("./pages/AppDevelopment"));
 const SolutionsIndex = React.lazy(() => import("./pages/Solutions"));
 const Work = React.lazy(() => import("./pages/Work"));
 const About = React.lazy(() => import("./pages/About"));
@@ -93,15 +95,17 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 /** Per-route SEO: unique title, description, canonical, OG/Twitter, robots. */
 const META: Record<string, [string, string]> = {
   "/": ["ITCYBER — AI Agents, Automation & Business Software", "Custom AI agents, intelligent automation, CRM & WhatsApp automation and business software for Indian businesses."],
-  "/services": ["Services — AI Agents, Automation, Integrations & Software | ITCYBER", "Four disciplines: AI agents, intelligent automation, business integrations and custom software — delivered as one system."],
+  "/services": ["Services — AI, Software, Web, Apps & Automation | ITCYBER", "Five engineering capabilities: AI & intelligent systems, custom software, web products, mobile & PWA applications, and automation & integrations — delivered as one connected system."],
   "/ai-agents": ["AI Agents for Business — Sales, Support, Appointment & Custom | ITCYBER", "Custom AI agent development in India: sales, support, qualification, appointment and operations agents wired to your systems."],
   "/automations": ["Business Process Automation — WhatsApp, CRM, Billing & More | ITCYBER", "Business automation in India: lead capture, CRM, follow-up, WhatsApp, invoicing and reporting automation with human approval gates."],
   "/custom-software": ["Custom AI Software, Dashboards & SaaS Development | ITCYBER", "Custom software development: internal tools, business dashboards, portals, SaaS products and AI-enabled web applications."],
+  "/web-development": ["Custom Website & Web Application Development | ITCYBER", "Custom websites, web applications, portals and AI-integrated web experiences — CMS, admin panels, CRM and WhatsApp integrations engineered in."],
+  "/app-development": ["Mobile App & PWA Development | ITCYBER", "Cross-platform mobile applications and progressive web apps: customer, employee and operations apps with AI features, offline sync and secure backends."],
   "/solutions": ["Industry Solutions — Real Estate, Healthcare, Education & More | ITCYBER", "AI and automation playbooks for real estate, healthcare, education, e-commerce, agencies, professional services, startups and SMEs."],
   "/work": ["Work — Reference Architectures & Case Studies | ITCYBER", "How ITCYBER systems are architected: reference architectures with challenge, solution architecture and integrations."],
   "/about": ["About ITCYber — Practical AI Systems for Real Businesses", "ITCYBER Technologies Pvt Ltd: business-first AI engineering. Our story, beliefs, mission and delivery method."],
   "/careers": ["Careers at ITCYBER — AI Automation & Engineering Roles", "Join ITCYBER: open roles in AI automation engineering, full-stack development, solutions architecture and business development."],
-  "/contact": ["Contact ITCYBER — Book a Free AI Consultation", "Tell us what you want to automate. Free consultation, 2-minute automation assessment, WhatsApp and email."],
+  "/contact": ["Contact ITCYBER — Discuss Your Website, App, Software or AI Project", "Tell us what you want to build. Free consultation and a 2-minute project assessment for websites, web apps, custom software, mobile apps, AI systems and automation."],
   "/privacy-policy": ["Privacy Policy | ITCYBER", "How ITCYBER Technologies collects, uses and protects your data."],
   "/terms-of-service": ["Terms of Service | ITCYBER", "Terms governing use of itcyber.in and ITCYBER services."],
   "/cookie-policy": ["Cookie Policy | ITCYBER", "The minimal, honest cookies used on itcyber.in and how to control them."],
@@ -149,6 +153,8 @@ function PageShell() {
             <Route path="/ai-agents" element={<Agents />} />
             <Route path="/automations" element={<Automations />} />
             <Route path="/custom-software" element={<Software />} />
+            <Route path="/web-development" element={<WebDevelopment />} />
+            <Route path="/app-development" element={<AppDevelopment />} />
             <Route path="/solutions" element={<SolutionsIndex />} />
             <Route path="/solutions/:slug" element={<Industry />} />
             <Route path="/work" element={<Work />} />

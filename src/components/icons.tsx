@@ -64,6 +64,20 @@ export const IconCode = (p: P) => (
   </svg>
 );
 
+export const IconGlobe = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M3.5 12h17M12 3.5c2.7 2.4 4 5.4 4 8.5s-1.3 6.1-4 8.5c-2.7-2.4-4-5.4-4-8.5s1.3-6.1 4-8.5Z" />
+  </svg>
+);
+
+export const IconDevice = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="7" y="3" width="10" height="18" rx="2" />
+    <path d="M10.5 17.8h3" />
+  </svg>
+);
+
 export const IconPlug = (p: P) => (
   <svg {...base(p)}>
     <path d="M9 3.5V8M15 3.5V8" />
