@@ -5,14 +5,16 @@ import { useSiteSettings } from "../../lib/cms";
 import { useAnnouncement } from "../../lib/cms";
 import { serviceCategories, industries, functionSolutions } from "../../data/content";
 import { cn } from "../../lib/utils";
-import { Logo, IconMenu, IconClose, IconChevron, IconArrow, IconAgent, IconFlow, IconPlug, IconCode, IconArrowUpRight } from "../icons";
+import { Logo, IconMenu, IconClose, IconChevron, IconArrow, IconAgent, IconFlow, IconCode, IconGlobe, IconDevice, IconSpark, IconArrowUpRight } from "../icons";
 import { Button } from "../ui";
 
+/* Canonical five-category icon map (ids: ai | software | web | apps | automation). */
 const serviceIcons: Record<string, React.ReactNode> = {
-  "ai-agents": <IconAgent size={20} />,
-  automation: <IconFlow size={20} />,
-  integrations: <IconPlug size={20} />,
+  ai: <IconAgent size={20} />,
   software: <IconCode size={20} />,
+  web: <IconGlobe size={20} />,
+  apps: <IconDevice size={20} />,
+  automation: <IconFlow size={20} />,
 };
 
 export default function Navbar() {
@@ -268,7 +270,7 @@ export default function Navbar() {
             or run the 2-min automation assessment →
           </Link>
           <p className="mt-3 text-center font-mono text-[0.68rem] uppercase tracking-[0.16em] text-ink-400">
-            {site.contact.email} · {site.contact.hours}
+            {settings.contact.email ? `${settings.contact.email} · ` : ""}{settings.contact.hours}
           </p>
         </div>
       </div>
@@ -280,25 +282,34 @@ export default function Navbar() {
 
 function MegaPanel({ kind }: { kind: string }) {
   if (kind === "services") {
+    /* Five capabilities: 3-up on row one, 2-up + assessment CTA on row two
+       (grid-cols-6 with col-span-2 cells) — never a squeezed 5-column strip. */
     return (
-      <div className="w-[46rem] bg-ink-850/95 backdrop-blur-xl hairline clip-corner shadow-[0_30px_80px_-20px_rgba(0,0,0,.8)] p-2 grid grid-cols-4">
+      <div className="w-[52rem] bg-ink-850/95 backdrop-blur-xl hairline clip-corner shadow-[0_30px_80px_-20px_rgba(0,0,0,.8)] p-2 grid grid-cols-6">
         {serviceCategories.map((s) => (
-          <Link key={s.id} to={s.page} className="group p-4 hover:bg-white/[.05] transition-colors flex flex-col">
+          <Link key={s.id} to={s.page} className="group col-span-2 p-4 hover:bg-white/[.05] transition-colors flex flex-col">
             <span className="text-cyan-ic mb-3 transition-transform duration-300 group-hover:-translate-y-0.5">{serviceIcons[s.id]}</span>
             <span className="font-mono text-[0.62rem] text-ink-400 tracking-[0.2em]">{s.index}</span>
-            <span className="font-display font-bold text-white text-[1.02rem] mt-1 group-hover:text-cyan-ic transition-colors">{s.title}</span>
+            <span className="font-display font-bold text-white text-[1.02rem] mt-1 leading-tight group-hover:text-cyan-ic transition-colors">{s.title}</span>
             <span className="text-[0.8rem] text-ink-300 mt-1.5 leading-snug">{s.tagline}</span>
             <span className="mt-3 inline-flex items-center gap-1 font-mono text-[0.66rem] uppercase tracking-[0.14em] text-brand-400 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
               {s.pageLabel} <IconArrow size={11} />
             </span>
           </Link>
         ))}
-        <div className="col-span-4 border-t border-white/[.07] mt-1 p-4 flex items-center justify-between gap-4">
-          <p className="text-[0.82rem] text-ink-300">Not sure which fits? Run a 2-minute assessment.</p>
-          <Link to="/contact" className="font-mono text-[0.7rem] uppercase tracking-[0.14em] text-cyan-ic hover:text-white inline-flex items-center gap-1.5 transition-colors">
-            {site.cta.assessment} <IconArrowUpRight size={13} />
-          </Link>
-        </div>
+        <Link
+          to="/contact?mode=assessment"
+          className="group col-span-2 m-1 hairline bg-brand-500/[.08] clip-corner p-4 flex flex-col justify-between hover:bg-brand-500/[.14] transition-colors"
+        >
+          <span className="text-brand-300 mb-3"><IconSpark size={20} /></span>
+          <span>
+            <span className="font-display font-bold text-white text-[1.02rem] leading-tight block">Not sure where to start?</span>
+            <span className="text-[0.8rem] text-ink-300 mt-1.5 leading-snug block">Run the 2-minute assessment — website, app, software, AI or automation.</span>
+          </span>
+          <span className="mt-3 inline-flex items-center gap-1 font-mono text-[0.66rem] uppercase tracking-[0.14em] text-cyan-ic">
+            {site.cta.assessment} <IconArrowUpRight size={12} className="transition-transform duration-300 group-hover:translate-x-0.5" />
+          </span>
+        </Link>
       </div>
     );
   }
@@ -344,7 +355,7 @@ function MegaPanel({ kind }: { kind: string }) {
     { label: "About", to: "/about", blurb: "Practical AI for real businesses" },
     { label: "Work", to: "/work", blurb: "How engagements are architected" },
     { label: "Careers", to: "/careers", blurb: "Build systems that run companies" },
-    { label: "Contact", to: "/contact", blurb: "Tell us what you want to automate" },
+    { label: "Contact", to: "/contact", blurb: "Tell us what you want to build" },
   ];
   return (
     <div className="w-[26rem] bg-ink-850/95 backdrop-blur-xl hairline clip-corner shadow-[0_30px_80px_-20px_rgba(0,0,0,.8)] p-3">

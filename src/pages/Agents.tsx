@@ -1,5 +1,39 @@
+import { useMemo } from "react";
 import { Reveal, Scramble } from "../lib/motion";
-import { agents } from "../data/content";
+import { agents as staticAgents, type Agent } from "../data/content";
+import { useCollection } from "../lib/cms";
+import type { AgentRow } from "../types/db";
+import { useSiteConfig, getPhoneHref } from "../lib/siteSettings";
+
+const DEMO_TYPES = ["chat", "score", "ticket", "calendar", "report", "build"] as const;
+
+/** Live published agents from the CMS, mapped to the UI shape; static fallback otherwise. */
+function useAgents(): Agent[] {
+  const { data } = useCollection("ai_agents", staticAgents as unknown as AgentRow[]);
+  return useMemo(
+    () =>
+      data.map((r) => {
+        if (!("demo_type" in r)) return r as unknown as Agent;
+        const row = r as AgentRow;
+        const demo = DEMO_TYPES.includes(row.demo_type as (typeof DEMO_TYPES)[number])
+          ? (row.demo_type as Agent["demo"])
+          : "chat";
+        return {
+          id: row.slug,
+          name: row.name,
+          role: row.role ?? "Custom",
+          description: row.description ?? "",
+          inputs: row.inputs ?? "",
+          actions: row.actions ?? "",
+          systems: row.systems ?? "",
+          outputs: row.outputs ?? "",
+          handoff: row.handoff ?? "",
+          demo,
+        };
+      }),
+    [data]
+  );
+}
 import { Button, Section, SectionHead, CtaBand, Badge } from "../components/ui";
 import { IconArrow, IconCheck, IconClose, IconSpark, IconShield } from "../components/icons";
 import { site } from "../data/site";
@@ -15,6 +49,9 @@ const comparison = [
 ];
 
 export default function Agents() {
+  const agents = useAgents();
+  const cfg = useSiteConfig();
+  const phoneHref = getPhoneHref(cfg);
   return (
     <>
       <section className="relative bg-ink-950 text-ink-100 overflow-hidden noise">
@@ -40,8 +77,8 @@ export default function Agents() {
             <Reveal delay={0.3}>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button to="/contact" arrow>Build a Custom Agent</Button>
-                {site.contact.phoneHref ? (
-                  <Button href={site.contact.phoneHref} variant="ghost">Talk to an AI Engineer</Button>
+                {phoneHref ? (
+                  <Button href={phoneHref} variant="ghost">Talk to an AI Engineer</Button>
                 ) : (
                   <Button to="/contact" variant="ghost">Talk to an AI Engineer</Button>
                 )}

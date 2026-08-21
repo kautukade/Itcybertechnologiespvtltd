@@ -40,8 +40,13 @@ jobs:
         with:
           deno-version: v2.x
 
-      # Supabase Edge Functions are Deno code — the frontend tsconfig never
-      # sees them. This check catches syntax/type errors before merge.
+      # Supabase Edge Functions are Deno code using `npm:` specifiers.
+      # The repo-root package.json would otherwise switch Deno into
+      # node_modules resolution (BYONM) and fail with "Could not find
+      # @supabase/supabase-js in a node_modules folder". The config at
+      # supabase/functions/deno.json sets "nodeModulesDir": "none" so npm
+      # dependencies resolve through the Deno cache instead — no npm install
+      # needed in this job.
       - name: Typecheck Edge Functions
         run: |
           deno check --no-lock \

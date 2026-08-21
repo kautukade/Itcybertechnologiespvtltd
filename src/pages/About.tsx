@@ -3,6 +3,17 @@ import { processSteps } from "../data/content";
 import { Button, Section, SectionHead, CtaBand, IconTile } from "../components/ui";
 import { IconArrow, IconCheck, IconCompass, IconBlueprint, IconRoute, IconLayers } from "../components/icons";
 import { site } from "../data/site";
+import { useSiteConfig, hasEmail } from "../lib/siteSettings";
+
+/** Mail CTA when a real email is configured; contact-page CTA otherwise. */
+function SayHelloButton() {
+  const cfg = useSiteConfig();
+  return hasEmail(cfg) ? (
+    <Button href={`mailto:${cfg.contact.email}`} variant="ghost">Say Hello</Button>
+  ) : (
+    <Button to="/contact" variant="ghost">Say Hello</Button>
+  );
+}
 
 const beliefs = [
   {
@@ -169,7 +180,7 @@ export default function About() {
             <Reveal delay={0.2}>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button to="/careers" arrow>See Open Roles</Button>
-                <Button href={`mailto:${site.contact.email}`} variant="ghost">Say Hello</Button>
+                <SayHelloButton />
               </div>
             </Reveal>
           </div>

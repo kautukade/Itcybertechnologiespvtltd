@@ -1,29 +1,46 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Reveal, Scramble } from "../lib/motion";
 import { cn } from "../lib/utils";
-import { serviceCategories, automationExample } from "../data/content";
+import { serviceCategories, automationExample, type ServiceCategory } from "../data/content";
 import { Button, Section, SectionHead, CtaBand, IconTile } from "../components/ui";
-import { IconArrow, IconCheck, IconAgent, IconFlow, IconPlug, IconCode, IconArrowUpRight } from "../components/icons";
+import { IconArrow, IconCheck, IconAgent, IconFlow, IconCode, IconGlobe, IconDevice, IconArrowUpRight } from "../components/icons";
 import { site } from "../data/site";
+import { useCollection } from "../lib/cms";
+import type { ServiceRow } from "../types/db";
 
+/* Canonical five-category icon map — ids match content.ts and the admin CMS. */
 const icons: Record<string, React.ReactNode> = {
-  "ai-agents": <IconAgent size={22} />,
-  automation: <IconFlow size={22} />,
-  integrations: <IconPlug size={22} />,
+  ai: <IconAgent size={22} />,
   software: <IconCode size={22} />,
+  web: <IconGlobe size={22} />,
+  apps: <IconDevice size={22} />,
+  automation: <IconFlow size={22} />,
 };
 
 export default function Services() {
   const { hash } = useLocation();
-  const [activeCat, setActiveCat] = useState(serviceCategories[0].id);
+  const [activeCat, setActiveCat] = useState("ai");
+
+  /* Live CMS: published `services` rows replace the bundled item lists when the
+     query succeeds; the static structure (and design) is the fallback. */
+  const { data: liveServices, source } = useCollection("services", [] as ServiceRow[]);
+  const categories = useMemo<ServiceCategory[]>(() => {
+    if (source !== "live" || liveServices.length === 0) return serviceCategories;
+    return serviceCategories.map((cat) => {
+      const rows = liveServices.filter((s) => s.category === cat.id);
+      return rows.length
+        ? { ...cat, items: rows.map((s) => ({ name: s.title, blurb: s.short_description ?? "" })) }
+        : cat;
+    });
+  }, [liveServices, source]);
 
   useEffect(() => {
     if (hash) {
       const id = hash.replace("#", "");
-      if (serviceCategories.some((c) => c.id === id)) setActiveCat(id);
+      if (categories.some((c) => c.id === id)) setActiveCat(id);
     }
-  }, [hash]);
+  }, [hash, categories]);
 
   const scrollTo = (id: string) => {
     setActiveCat(id);
@@ -44,17 +61,18 @@ export default function Services() {
             </p>
           </Reveal>
           <h1 className="font-display font-bold text-white tracking-tight mt-5 max-w-3xl text-[clamp(2.1rem,5vw,3.8rem)] leading-[1.05]">
-            Four disciplines. One operating system for your business.
+            Five engineering capabilities. One connected technology partner.
           </h1>
           <Reveal delay={0.2}>
             <p className="mt-5 max-w-2xl text-[clamp(1rem,1.5vw,1.15rem)] text-ink-200 leading-relaxed">
-              Agents think, automations move, integrations connect and custom software gives your team control.
-              Buy one discipline or the whole system — every piece is built to work with the others.
+              AI systems think, software runs the operation, websites and apps meet your customers,
+              and automation keeps everything moving. Engage one capability or the whole system —
+              every piece is built to work with the others.
             </p>
           </Reveal>
           <Reveal delay={0.3}>
             <div className="mt-8 flex flex-wrap gap-2">
-              {serviceCategories.map((c) => (
+              {categories.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => scrollTo(c.id)}
@@ -72,7 +90,7 @@ export default function Services() {
       </section>
 
       {/* category sections */}
-      {serviceCategories.map((cat, ci) => (
+      {categories.map((cat, ci) => (
         <Section key={cat.id} tone={ci % 2 === 0 ? "dark" : "deeper"} id={`cat-${cat.id}`} className="scroll-mt-24 noise">
           <div className="absolute inset-0 grid-bg opacity-40" aria-hidden />
           <div className="relative wrap">
@@ -130,7 +148,7 @@ export default function Services() {
             <Reveal delay={0.1}>
               <div className="mt-10 pt-6 border-t border-white/[.07] flex flex-wrap items-center gap-3">
                 <span className="font-mono text-[0.62rem] uppercase tracking-[0.16em] text-ink-400">pairs well with:</span>
-                {serviceCategories.filter((c) => c.id !== cat.id).map((c) => (
+                {categories.filter((c) => c.id !== cat.id).map((c) => (
                   <button key={c.id} onClick={() => scrollTo(c.id)} className="font-mono text-[0.66rem] px-3 py-1.5 hairline text-ink-200 hover:text-cyan-ic hover:bg-white/[.04] transition-colors clip-corner">
                     {c.title}
                   </button>
@@ -147,7 +165,7 @@ export default function Services() {
           <SectionHead
             tone="paper"
             eyebrow="one engagement"
-            title={<>A typical system touches all four <span className="text-brand-600">disciplines.</span></>}
+            title={<>A typical system touches all five <span className="text-brand-600">capabilities.</span></>}
             lead="Here's the shape of a real deployment — from the first enquiry to the dashboard your managers open every morning."
           />
           <Reveal delay={0.1}>

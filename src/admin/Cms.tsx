@@ -38,7 +38,7 @@ export const CMS_CONFIGS: Record<string, CmsConfig> = {
     fields: [
       { key: "title", label: "Title", type: "text" },
       { key: "slug", label: "Slug", type: "text", hint: "Auto-generated from the title on create" },
-      { key: "category", label: "Category", type: "select", options: ["agents", "automation", "software", "integrations", "consulting"] },
+      { key: "category", label: "Category", type: "select", options: ["ai", "software", "web", "apps", "automation"] },
       { key: "icon", label: "Icon key", type: "text" },
       { key: "short_description", label: "Short description", type: "textarea", span: true },
       { key: "full_description", label: "Full description", type: "textarea", span: true },
@@ -61,7 +61,7 @@ export const CMS_CONFIGS: Record<string, CmsConfig> = {
       { key: "systems", label: "Systems accessed", type: "textarea" },
       { key: "outputs", label: "Outputs", type: "textarea" },
       { key: "handoff", label: "Human handoff", type: "textarea", span: true },
-      { key: "demo_type", label: "Micro-demo type", type: "select", options: ["chat", "score", "queue", "slots", "report", "build"] },
+      { key: "demo_type", label: "Micro-demo type", type: "select", options: ["chat", "score", "ticket", "calendar", "report", "build"] },
       { key: "featured", label: "Featured", type: "check" },
       { key: "published", label: "Published", type: "check" },
       { key: "sort_order", label: "Sort order", type: "number" },

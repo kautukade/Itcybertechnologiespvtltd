@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
-import { site, waLink, contactReady, emailReady } from "../../data/site";
+import { site } from "../../data/site";
 import { serviceCategories, industries } from "../../data/content";
 import { useCollection } from "../../lib/cms";
+import { useSiteConfig, hasEmail, hasWhatsApp, getWhatsAppLink } from "../../lib/siteSettings";
 import type { SocialLinkRow } from "../../types/db";
-import { Logo, IconMail, IconWhatsApp, IconPin, IconArrowUpRight, IconArrow } from "../icons";
+import { Logo, IconMail, IconWhatsApp, IconPin, IconClock, IconArrowUpRight, IconArrow } from "../icons";
 
 const cols: { title: string; links: { label: string; to: string }[] }[] = [
   {
@@ -29,6 +30,8 @@ const cols: { title: string; links: { label: string; to: string }[] }[] = [
       { label: "AI Agents", to: "/ai-agents" },
       { label: "Automations", to: "/automations" },
       { label: "Custom Software", to: "/custom-software" },
+      { label: "Web Development", to: "/web-development" },
+      { label: "App Development", to: "/app-development" },
       { label: "Privacy Policy", to: "/privacy-policy" },
       { label: "Terms of Service", to: "/terms-of-service" },
       { label: "Cookie Policy", to: "/cookie-policy" },
@@ -46,7 +49,7 @@ function FooterSocials() {
     : site.socials;
   if (!links.length) return null;
   return (
-    <div className="mt-6 flex gap-2">
+    <div className="mt-6 flex gap-2 flex-wrap">
       {links.map((s) => (
         <a
           key={s.label}
@@ -63,6 +66,7 @@ function FooterSocials() {
 }
 
 export default function Footer() {
+  const cfg = useSiteConfig();
   return (
     <footer className="relative bg-ink-950 text-ink-200 border-t border-white/[.07] overflow-hidden">
       <div className="absolute inset-0 grid-bg opacity-40" aria-hidden />
@@ -75,20 +79,21 @@ export default function Footer() {
               <Logo />
             </Link>
             <p className="mt-4 text-[0.92rem] leading-relaxed text-ink-300">
-              Custom AI agents, intelligent automation and business software — engineered around the systems your business already runs on.
+              Custom websites, web applications, business software, mobile apps, AI systems and
+              automation — engineered as connected digital products.
             </p>
             <ul className="mt-6 space-y-2.5 text-[0.88rem]">
-              {emailReady && (
+              {hasEmail(cfg) && (
                 <li>
-                  <a href={`mailto:${site.contact.email}`} className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
+                  <a href={`mailto:${cfg.contact.email}`} className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
                     <IconMail size={15} className="text-cyan-ic" />
-                    <span className="group-hover:underline underline-offset-4">{site.contact.email}</span>
+                    <span className="group-hover:underline underline-offset-4">{cfg.contact.email}</span>
                   </a>
                 </li>
               )}
-              {contactReady && (
+              {hasWhatsApp(cfg) && (
                 <li>
-                  <a href={waLink("Hi ITCYBER — I have a question about AI automation.") ?? undefined} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
+                  <a href={getWhatsAppLink(cfg, "Hi ITCYBER — I have a question about a project.") ?? undefined} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
                     <IconWhatsApp size={15} className="text-signal" />
                     <span className="group-hover:underline underline-offset-4">WhatsApp ITCYBER</span>
                   </a>
@@ -96,7 +101,11 @@ export default function Footer() {
               )}
               <li className="inline-flex items-center gap-2.5 text-ink-300">
                 <IconPin size={15} className="text-brand-400" />
-                {site.contact.address}
+                {cfg.contact.address}
+              </li>
+              <li className="inline-flex items-center gap-2.5 text-ink-300">
+                <IconClock size={15} className="text-brand-400" />
+                {cfg.contact.hours}
               </li>
             </ul>
             <FooterSocials />
@@ -125,15 +134,9 @@ export default function Footer() {
           <p className="text-[0.8rem] text-ink-400">
             © {new Date().getFullYear()} {site.legalName}. All rights reserved.
           </p>
-          <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-ink-400 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 bg-signal rounded-full anim-pulse-dot" aria-hidden />
-            All systems operational · {site.contact.hours}
+          <p className="font-mono text-[0.68rem] uppercase tracking-[0.16em] text-ink-400">
+            Business hours · {cfg.contact.hours}
           </p>
-          <div className="flex gap-5 text-[0.8rem]">
-            <Link to="/privacy-policy" className="text-ink-400 hover:text-white transition-colors">Privacy</Link>
-            <Link to="/terms-of-service" className="text-ink-400 hover:text-white transition-colors">Terms</Link>
-            <Link to="/cookie-policy" className="text-ink-400 hover:text-white transition-colors">Cookies</Link>
-          </div>
         </div>
       </div>
     </footer>

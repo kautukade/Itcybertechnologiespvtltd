@@ -94,7 +94,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
 /** Per-route SEO: unique title, description, canonical, OG/Twitter, robots. */
 const META: Record<string, [string, string]> = {
-  "/": ["ITCYBER — AI Agents, Automation & Business Software", "Custom AI agents, intelligent automation, CRM & WhatsApp automation and business software for Indian businesses."],
+  "/": ["ITCYBER — AI, Custom Software, Web & App Development", "ITCYBER builds AI systems, custom software, business websites, web applications, mobile & PWA apps, automation and integrations — one engineering team, one connected digital system."],
   "/services": ["Services — AI, Software, Web, Apps & Automation | ITCYBER", "Five engineering capabilities: AI & intelligent systems, custom software, web products, mobile & PWA applications, and automation & integrations — delivered as one connected system."],
   "/ai-agents": ["AI Agents for Business — Sales, Support, Appointment & Custom | ITCYBER", "Custom AI agent development in India: sales, support, qualification, appointment and operations agents wired to your systems."],
   "/automations": ["Business Process Automation — WhatsApp, CRM, Billing & More | ITCYBER", "Business automation in India: lead capture, CRM, follow-up, WhatsApp, invoicing and reporting automation with human approval gates."],
