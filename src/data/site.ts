@@ -96,7 +96,7 @@ export const nav = {
     { label: "Company", to: "/about", mega: "company" },
   ],
   resources: [
-    { label: "Automation Field Notes", to: "/#resources", blurb: "Playbooks from live deployments" },
+    { label: "Automation Field Notes", to: "/resources", blurb: "Published playbooks and practical field notes" },
     { label: "How We Deliver", to: "/about#process", blurb: "Understand → Architect → Build → Deploy → Optimize" },
     { label: "Security & Control", to: "/#security", blurb: "Boundaries, logs and human escalation" },
     { label: "FAQ", to: "/contact#faq", blurb: "Answers before the first call" },
