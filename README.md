@@ -22,6 +22,8 @@ Copy `.env.example` to `.env` for local Supabase configuration. Never commit `.e
 
 ## Production verification
 
+Use Node 22, which is the supported runtime for the currently resolved Supabase packages:
+
 ```bash
 npm ci
 npm run typecheck
@@ -30,7 +32,7 @@ npm run build
 
 Pull requests also run GitHub Actions for:
 
-- Node 20 TypeScript + Vite build;
+- Node 22 TypeScript + Vite build;
 - production dependency audit at high severity;
 - Deno typechecking for all three Supabase Edge Functions using the repository's function config.
 
@@ -84,7 +86,7 @@ supabase/
 ## Netlify deployment
 
 1. Import this GitHub repository into Netlify.
-2. `netlify.toml` runs `npm run build`, publishes `dist/`, pins Node 20, configures SPA routing, caching and security headers.
+2. `netlify.toml` runs `npm run build`, publishes `dist/`, pins Node 22, configures SPA routing, caching and security headers.
 3. Add these Netlify environment variables:
 
 ```text
