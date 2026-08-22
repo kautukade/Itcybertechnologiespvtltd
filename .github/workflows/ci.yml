@@ -5,18 +5,22 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   verify:
-    name: Typecheck & Build
+    name: Typecheck, Audit & Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node (LTS)
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 20
           cache: npm
 
       - name: Install dependencies
@@ -25,12 +29,16 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Build
         run: npm run build
 
   edge-functions:
     name: Validate Supabase Edge Functions (Deno)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,16 +48,9 @@ jobs:
         with:
           deno-version: v2.x
 
-      # Supabase Edge Functions are Deno code using `npm:` specifiers.
-      # The repo-root package.json would otherwise switch Deno into
-      # node_modules resolution (BYONM) and fail with "Could not find
-      # @supabase/supabase-js in a node_modules folder". The config at
-      # supabase/functions/deno.json sets "nodeModulesDir": "none" so npm
-      # dependencies resolve through the Deno cache instead — no npm install
-      # needed in this job.
       - name: Typecheck Edge Functions
         run: |
-          deno check --no-lock \
+          deno check --config supabase/functions/deno.json --no-lock \
             supabase/functions/submit-contact/index.ts \
             supabase/functions/submit-assessment/index.ts \
             supabase/functions/submit-career/index.ts
