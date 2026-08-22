@@ -1,90 +1,109 @@
 # ITCYBER Technologies Pvt Ltd — Website + Admin Platform
 
-Premium marketing site **and** secure admin/CMS platform for ITCYBER Technologies
-Pvt Ltd — custom AI agents, intelligent business automation and custom software.
+Production marketing site and secure admin/CMS platform for **ITCYBER Technologies Pvt Ltd** — custom AI systems, business automation, websites, applications and custom software.
 
-**Stack:** React 18 · TypeScript (strict) · Vite · Tailwind CSS v4 · Framer Motion ·
-React Router · React Three Fiber (adaptive 3D hero) · Supabase (Auth, Postgres,
-Storage, Edge Functions, RLS) · Netlify.
+**Stack:** React 18 · TypeScript strict mode · Vite · Tailwind CSS · Framer Motion · React Router · React Three Fiber · Supabase (Auth, Postgres, Storage, Edge Functions, RLS) · Netlify.
 
-## Run locally
+## Local development
 
 ```bash
 npm install
 npm run dev
 ```
 
-The public site works **with or without** Supabase:
-- Without env vars → bundled content, forms show an honest "service unavailable" error.
-- With env vars (see `.env.example` + `SUPABASE_SETUP.md`) → live CMS content,
-  real form storage, admin panel enabled.
+The public site degrades safely when Supabase is unavailable:
 
-## Production build
+- bundled non-sensitive content remains visible;
+- public forms never fake success;
+- careers do **not** show bundled demo jobs as live vacancies;
+- admin login clearly reports missing frontend environment configuration.
+
+Copy `.env.example` to `.env` for local Supabase configuration. Never commit `.env` or a service-role key.
+
+## Production verification
 
 ```bash
-npm run build      # emits dist/
-npm run typecheck  # strict TS check
+npm ci
+npm run typecheck
+npm run build
 ```
 
-## Backend in one paragraph
+Pull requests also run GitHub Actions for:
 
-Public forms never insert into the database directly. They call the
-`submit-contact`, `submit-assessment` and `submit-career` Edge Functions
-(server-side validation, honeypot, timing check, per-email rate limit,
-allow-listed CORS), which insert with the service role and fail closed if it
-is missing — never with the anon key. RLS blocks all
-anonymous reads of leads/applications and enforces role-based admin permissions
-(`super_admin`, `admin`, `editor`, `sales`, `hr`) server-side. Resumes upload to
-the **private** `career-resumes` bucket and are opened only via 5-minute signed
-URLs. See **SUPABASE_SETUP.md** for the full beginner walkthrough
-(schema → auth → first admin → functions → storage → RLS verification → deploy).
+- Node 20 TypeScript + Vite build;
+- production dependency audit at high severity;
+- Deno typechecking for all three Supabase Edge Functions using the repository's function config.
+
+## Backend architecture
+
+Public forms do not insert directly into protected tables. They call:
+
+- `submit-contact`
+- `submit-assessment`
+- `submit-career`
+
+The Edge Functions validate fields, reject unexpected payload keys, apply request/rate limits, use an explicit CORS allow-list, and insert with the server-side service role. The career endpoint additionally verifies that a selected role is both published and accepting applications before creating an application.
+
+RLS protects leads, assessments, applications, profiles, audit logs and CMS writes. Resumes are stored in the private `career-resumes` bucket and opened by authorized HR/admin users through short-lived signed URLs.
+
+See **SUPABASE_SETUP.md** for migrations, Auth, first-admin setup, function deployment, RLS verification and production smoke tests.
 
 ## Admin panel
 
-Sign in at `/itcyberadmin/login` (never linked from the public site, excluded in
-`robots.txt`, `noindex`). Includes:
+Sign in at `/itcyberadmin/login`. The route is excluded from indexing and is never advertised on the public site.
 
 | Area | Capabilities |
 | --- | --- |
-| Dashboard | Real-time lead counts, 14-day chart, status funnel, sources, activity |
-| Leads | Mini-CRM: search, filters, pagination, drawer, status/assign/notes, CSV export |
-| Assessments | Review + stage the public automation assessment submissions |
-| Services / AI Agents / Automations / Industries / Work / Resources | Full CMS (create, edit, publish, reorder, JSON fields) |
-| Jobs / Applications | Role CRUD, open/close applications, stage pipeline, signed resume URLs, CSV |
-| Media | Upload/preview/alt-text/replace/delete in the `site-media` bucket |
-| SEO | Per-route title/description/canonical/OG/robots/schema overrides |
-| Navigation / Pages | Announcement + homepage hero copy overrides |
-| Settings | Company contact details (warns when incomplete — public CTAs stay hidden) |
-| Users / Audit Logs | Role + activation management (super_admin), full audit trail |
+| Dashboard | Lead/application overview and operational summaries |
+| Leads | Search, filters, assignment, notes, status pipeline, CSV export |
+| Assessments | Review and manage project/automation assessments |
+| Services / AI Agents / Automations / Industries / Work / Resources | CMS create/edit/publish/reorder workflows |
+| Jobs / Applications | Role CRUD, open/close controls, candidate stages, signed resumes |
+| Media | Validated upload/replace/delete in `site-media` |
+| SEO | Per-route title, description, canonical, OG, robots and schema overrides |
+| Navigation / Pages | Announcement and homepage/navigation settings |
+| Settings | Runtime contact and company settings |
+| Users / Audit Logs | Role/activation administration and activity history |
 
 ## Project structure
 
-```
+```text
 src/
-  admin/        admin panel (layout, CRM, CMS engine, system screens)
-  components/   layout, ui kit, custom icons, workflow demos, 3D scene
-  data/         centralized content + site config (fallback when CMS offline)
-  lib/          supabase client, leads API, auth/roles, cms hooks, seo, motion
+  admin/        admin panel and CMS
+  components/   layout, UI, workflow demos and 3D scene
+  data/         bundled fallback content and default site config
+  lib/          Supabase, forms, auth/RBAC, CMS, SEO and motion helpers
   pages/        public routes
-  types/        hand-maintained Supabase row types
+  types/        Supabase row types
 supabase/
-  migrations/   0001 schema+RLS+storage · 0002 lead notes · 0003 security hardening
-  functions/    submit-contact · submit-assessment · submit-career (validated submissions)
+  migrations/   0001 initial schema → 0005 production hardening
+  functions/    validated public submission endpoints
+  seed.sql      optional idempotent starter CMS content
 ```
 
 ## Netlify deployment
 
-1. Push to GitHub → Netlify **Import project** (settings auto-read from `netlify.toml`).
-2. Add the environment variables from `.env.example` under Site settings.
-3. Deploy; attach `www.itcyber.in` and enable HTTPS.
-Manual option: `npm run build` then drag `dist/` to https://app.netlify.com/drop.
-`netlify.toml` already configures SPA redirects, asset caching and security
-headers (CSP, HSTS, nosniff, frame denial, referrer + permissions policy).
+1. Import this GitHub repository into Netlify.
+2. `netlify.toml` runs `npm run build`, publishes `dist/`, pins Node 20, configures SPA routing, caching and security headers.
+3. Add these Netlify environment variables:
 
-## Rules this codebase follows
+```text
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+VITE_SITE_URL
+```
 
-- No fake submissions: success states only after the backend confirms storage.
-- No placeholder contact details shown publicly — unconfigured channels are hidden.
-- No invented clients, metrics, testimonials or certifications; `case_type`
-  distinguishes `reference` architectures from verified `real` case studies.
-- Service-role keys never appear in frontend code.
+4. Deploy the three Supabase Edge Functions separately as documented in `SUPABASE_SETUP.md`.
+5. Attach `www.itcyber.in`, enable HTTPS and run the production smoke tests.
+
+## Security and content rules
+
+- Service-role credentials never belong in frontend code, Vite variables or Git.
+- Public protected-table writes go through validated Edge Functions.
+- RLS remains the server-side authorization boundary; client-side RBAC is only UX/navigation.
+- `career-resumes` is private and MIME/size restricted server-side.
+- `site-media` has server-side MIME/size limits in migration `0005`.
+- A case study cannot be marked `real` in the database unless `verified = true`.
+- Contact channels stay hidden until configured with real values.
+- No fake form-success states, fake client testimonials or invented metrics.
+- New database changes use a new numbered migration; already-applied migration history is not rewritten.
