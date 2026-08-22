@@ -1,44 +1,18 @@
 // ITCYBER — submit-contact Edge Function
-// Validates the public contact/project-brief form and stores it in
-// `contact_leads` via the SERVICE ROLE. Fails closed if the service role
-// key is not configured — it never falls back to the anon key.
-//
-// Deploy:  supabase functions deploy submit-contact --no-verify-jwt
-// Secrets: SUPABASE_SERVICE_ROLE_KEY (set automatically), ALLOWED_ORIGINS
+// Public endpoint with strict origin/body validation, server-side abuse
+// throttling and service-role-only database writes.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const DEFAULT_ORIGINS = [
-  "https://www.itcyber.in",
-  "https://itcyber.in",
-  "https://itcybertechnologiespvtltd.netlify.app",
-];
-const ALLOWED_ORIGINS = [
-  ...new Set([
-    ...DEFAULT_ORIGINS,
-    ...(Deno.env.get("ALLOWED_ORIGINS") ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
-  ]),
-];
-
-function corsFor(requestOrigin: string | null): Record<string, string> {
-  const origin = requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)
-    ? requestOrigin
-    : DEFAULT_ORIGINS[0];
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    Vary: "Origin",
-  };
-}
-const json = (body: unknown, status = 200, origin: string | null = null) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsFor(origin), "Content-Type": "application/json" },
-  });
+import {
+  consumePublicRateLimit,
+  corsHeaders,
+  isAllowedOrigin,
+  jsonResponse,
+  readJsonObject,
+  rejectDisallowedOrigin,
+  requestFingerprint,
+  RequestBodyError,
+} from "../_shared/security.ts";
 
 const ALLOWED: Record<string, number> = {
   full_name: 120, company: 160, email: 254, phone: 30, website: 250,
@@ -56,49 +30,59 @@ function clean(value: unknown, max: number): string | null {
 }
 
 Deno.serve(async (req) => {
-  const reqOrigin = req.headers.get("origin");
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsFor(reqOrigin) });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, reqOrigin);
+  const origin = req.headers.get("origin");
 
-  const contentLength = Number(req.headers.get("content-length") ?? 0);
-  if (Number.isFinite(contentLength) && contentLength > 32_768) {
-    return json({ error: "Request is too large" }, 413, reqOrigin);
+  if (req.method === "OPTIONS") {
+    if (!isAllowedOrigin(origin)) return jsonResponse({ error: "Origin not allowed" }, 403, origin);
+    return new Response(null, { status: 204, headers: corsHeaders(origin) });
   }
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405, origin);
+
+  const originError = rejectDisallowedOrigin(req);
+  if (originError) return originError;
 
   let raw: Record<string, unknown>;
   try {
-    raw = await req.json();
-  } catch {
-    return json({ error: "Invalid JSON body" }, 400, reqOrigin);
+    raw = await readJsonObject(req, 32_768);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return jsonResponse({ error: error.message }, error.status, origin);
+    return jsonResponse({ error: "Invalid request" }, 400, origin);
   }
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return json({ error: "Invalid payload" }, 400, reqOrigin);
 
-  if (raw.referral_link) return json({ ok: true }, 200, reqOrigin);
+  // Honeypot responses deliberately look successful to simple bots.
+  if (raw.referral_link) return jsonResponse({ ok: true }, 200, origin);
   const elapsed = Number(raw.elapsed_ms);
-  if (Number.isFinite(elapsed) && elapsed < 2500) return json({ error: "Submission rejected" }, 429, reqOrigin);
+  if (Number.isFinite(elapsed) && elapsed < 2500) return jsonResponse({ error: "Submission rejected" }, 429, origin);
 
   const unknown = Object.keys(raw).filter(
     (k) => !(k in ALLOWED) && !["elapsed_ms", "referral_link"].includes(k)
   );
-  if (unknown.length) return json({ error: `Unexpected fields: ${unknown.join(", ")}` }, 400, reqOrigin);
+  if (unknown.length) return jsonResponse({ error: `Unexpected fields: ${unknown.join(", ")}` }, 400, origin);
 
   const data: Record<string, string | null> = {};
   for (const [key, max] of Object.entries(ALLOWED)) data[key] = clean(raw[key], max);
 
-  const email = data.email;
-  if (!email || !EMAIL_RE.test(email)) return json({ error: "A valid email is required" }, 422, reqOrigin);
-  if (!data.full_name) return json({ error: "Full name is required" }, 422, reqOrigin);
-  if (!data.message) return json({ error: "A short project description is required" }, 422, reqOrigin);
-  if (data.phone && !PHONE_RE.test(data.phone)) return json({ error: "Phone number looks invalid" }, 422, reqOrigin);
+  const email = data.email?.toLowerCase() ?? null;
+  if (!email || !EMAIL_RE.test(email)) return jsonResponse({ error: "A valid email is required" }, 422, origin);
+  if (!data.full_name) return jsonResponse({ error: "Full name is required" }, 422, origin);
+  if (!data.message) return jsonResponse({ error: "A short project description is required" }, 422, origin);
+  if (data.phone && !PHONE_RE.test(data.phone)) return jsonResponse({ error: "Phone number looks invalid" }, 422, origin);
 
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const url = Deno.env.get("SUPABASE_URL");
   if (!serviceKey || !url) {
-    console.error("submit-contact: SUPABASE_SERVICE_ROLE_KEY is not configured");
-    return json({ error: "Submission service is not configured. Please contact us directly." }, 503, reqOrigin);
+    console.error("submit-contact: server credentials are not configured");
+    return jsonResponse({ error: "Submission service is not configured. Please contact us directly." }, 503, origin);
   }
-  const admin = createClient(url, serviceKey);
+  const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
+  const fingerprint = await requestFingerprint(req);
+  const abuse = await consumePublicRateLimit(admin, "contact", fingerprint, 30, 3600);
+  if (abuse === "blocked") return jsonResponse({ error: "Too many submissions — please try again later." }, 429, origin);
+  if (abuse === "error") return jsonResponse({ error: "We couldn't submit your request. Please try again." }, 503, origin);
+
+  // Keep an email-specific limit too, so rotating network addresses alone is
+  // not enough to flood the lead table.
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count, error: rateError } = await admin
     .from("contact_leads")
@@ -107,9 +91,9 @@ Deno.serve(async (req) => {
     .gte("created_at", hourAgo);
   if (rateError) {
     console.error("contact rate-limit lookup failed", rateError.message);
-    return json({ error: "We couldn't submit your request. Please try again." }, 500, reqOrigin);
+    return jsonResponse({ error: "We couldn't submit your request. Please try again." }, 500, origin);
   }
-  if ((count ?? 0) >= 5) return json({ error: "Too many submissions — please try again later." }, 429, reqOrigin);
+  if ((count ?? 0) >= 5) return jsonResponse({ error: "Too many submissions — please try again later." }, 429, origin);
 
   const { error } = await admin.from("contact_leads").insert({
     full_name: data.full_name, company: data.company, email, phone: data.phone,
@@ -123,7 +107,7 @@ Deno.serve(async (req) => {
 
   if (error) {
     console.error("contact insert failed", error.message);
-    return json({ error: "We couldn't submit your request. Please try again." }, 500, reqOrigin);
+    return jsonResponse({ error: "We couldn't submit your request. Please try again." }, 500, origin);
   }
-  return json({ ok: true }, 200, reqOrigin);
+  return jsonResponse({ ok: true }, 200, origin);
 });
