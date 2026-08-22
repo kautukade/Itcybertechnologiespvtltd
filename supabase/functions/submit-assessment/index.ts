@@ -5,12 +5,14 @@
 //
 // Deploy:  supabase functions deploy submit-assessment --no-verify-jwt
 // Secrets: SUPABASE_SERVICE_ROLE_KEY (set automatically), ALLOWED_ORIGINS
-//          (optional, comma-separated extra origins for previews)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-/* ── CORS: explicit allow-list. No wildcards, no blind reflection. ── */
-const DEFAULT_ORIGINS = ["https://www.itcyber.in", "https://itcyber.in"];
+const DEFAULT_ORIGINS = [
+  "https://www.itcyber.in",
+  "https://itcyber.in",
+  "https://itcybertechnologiespvtltd.netlify.app",
+];
 const ALLOWED_ORIGINS = [
   ...new Set([
     ...DEFAULT_ORIGINS,
@@ -38,7 +40,6 @@ const json = (body: unknown, status = 200, origin: string | null = null) =>
     headers: { ...corsFor(origin), "Content-Type": "application/json" },
   });
 
-/* ── validation ── */
 const ALLOWED: Record<string, number> = {
   full_name: 120, company: 160, email: 254, phone: 30,
   requirement: 80, industry: 80, business_problem: 2000,
@@ -59,13 +60,18 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsFor(reqOrigin) });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, reqOrigin);
 
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > 49_152) {
+    return json({ error: "Request is too large" }, 413, reqOrigin);
+  }
+
   let raw: Record<string, unknown>;
   try {
     raw = await req.json();
   } catch {
     return json({ error: "Invalid JSON body" }, 400, reqOrigin);
   }
-  if (typeof raw !== "object" || raw === null) return json({ error: "Invalid payload" }, 400, reqOrigin);
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return json({ error: "Invalid payload" }, 400, reqOrigin);
 
   if (raw.referral_link) return json({ ok: true }, 200, reqOrigin);
   const elapsed = Number(raw.elapsed_ms);
@@ -84,7 +90,15 @@ Deno.serve(async (req) => {
   if (!data.full_name) return json({ error: "Full name is required" }, 422, reqOrigin);
   if (data.phone && !PHONE_RE.test(data.phone)) return json({ error: "Phone number looks invalid" }, 422, reqOrigin);
 
-  // Fail closed: privileged inserts require the service role. No anon fallback.
+  const answers = raw.answers_json;
+  if (answers !== undefined && (typeof answers !== "object" || answers === null || Array.isArray(answers))) {
+    return json({ error: "Invalid assessment answers" }, 422, reqOrigin);
+  }
+  const answersJson = answers ?? {};
+  if (JSON.stringify(answersJson).length > 20_000) {
+    return json({ error: "Assessment answers are too large" }, 413, reqOrigin);
+  }
+
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const url = Deno.env.get("SUPABASE_URL");
   if (!serviceKey || !url) {
@@ -94,21 +108,23 @@ Deno.serve(async (req) => {
   const admin = createClient(url, serviceKey);
 
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { count } = await admin
+  const { count, error: rateError } = await admin
     .from("automation_assessments")
     .select("id", { count: "exact", head: true })
     .eq("email", email)
     .gte("created_at", hourAgo);
+  if (rateError) {
+    console.error("assessment rate-limit lookup failed", rateError.message);
+    return json({ error: "We couldn't submit your request. Please try again." }, 500, reqOrigin);
+  }
   if ((count ?? 0) >= 5) return json({ error: "Too many submissions — please try again later." }, 429, reqOrigin);
-
-  const answers = raw.answers_json && typeof raw.answers_json === "object" ? raw.answers_json : {};
 
   const { error } = await admin.from("automation_assessments").insert({
     full_name: data.full_name, company: data.company, email, phone: data.phone,
     requirement: data.requirement, industry: data.industry,
     business_problem: data.business_problem, existing_tools: data.existing_tools,
     budget: data.budget, timeline: data.timeline,
-    answers_json: answers, status: "new",
+    answers_json: answersJson, status: "new",
   });
 
   if (error) {
