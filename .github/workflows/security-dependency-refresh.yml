@@ -1,0 +1,48 @@
+name: Security dependency refresh
+
+on:
+  push:
+    branches: [security-hardening-2026-08-22-v2]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.event.head_commit.message == 'Add dependency refresh workflow'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: security-hardening-2026-08-22-v2
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Upgrade vulnerable router and remove unused uuid
+        run: |
+          npm install react-router-dom@7.18.2 --save-exact
+          npm uninstall uuid @types/uuid
+
+      - name: Verify security and build
+        run: |
+          npm audit --omit=dev --audit-level=moderate
+          npm run typecheck
+          npm run build
+
+      - name: Commit generated dependency files
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "No dependency changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "Upgrade security-sensitive dependencies [deps-generated]"
+          git push origin HEAD:security-hardening-2026-08-22-v2
