@@ -1,221 +1,224 @@
 # Supabase Setup — ITCYBER (beginner-friendly)
 
-This guide takes a brand-new Supabase project to a fully working backend for
-**www.itcyber.in**: database + RLS, Auth, storage buckets, and the three Edge
-Functions that receive public form submissions.
+This guide takes a brand-new Supabase project to a working production backend for **www.itcyber.in**: database + RLS, Auth, storage buckets, and the three Edge Functions that receive public form submissions.
 
-Everything you need is already in this repository:
+Everything required is in this repository:
 
-```
+```text
 supabase/
   migrations/
-    0001_initial.sql                    ← all tables, RLS policies, storage buckets
-    0002_lead_notes_and_scheduling.sql  ← lead_notes, announcement scheduling
-    0003_security_hardening.sql         ← profile privilege-escalation guard,
-                                          resume bucket limits, strict upload paths
+    0001_initial.sql                    # tables, RLS policies, storage buckets
+    0002_lead_notes_and_scheduling.sql  # lead notes, announcement scheduling
+    0003_security_hardening.sql         # profile guard + resume hardening
+    0004_unique_constraints.sql         # idempotent seed constraints
+    0005_production_hardening.sql       # media limits, case-study invariant, indexes
   functions/
-    submit-contact/index.ts             ← validates + stores contact leads
-    submit-assessment/index.ts          ← validates + stores assessments
-    submit-career/index.ts              ← validates + stores job applications
-  seed.sql                              ← optional starter content for the CMS
+    submit-contact/index.ts
+    submit-assessment/index.ts
+    submit-career/index.ts
+  seed.sql                              # optional starter CMS content
 ```
 
-> There is no `supabase/schema.sql` — the schema lives in the numbered files
-> under `supabase/migrations/` and must be applied **in numeric order**.
+> There is no `supabase/schema.sql`. The schema lives in numbered migrations and they must be applied **in numeric order**. Once a migration has been applied to production, do not edit history to make a new schema change — create the next numbered migration instead.
 
 ---
 
 ## 1. Create the Supabase project
 
-1. Go to https://supabase.com → **New project**.
-2. Choose a name (e.g. `itcyber`), a strong database password (store it in a
-   password manager), and the region closest to your users.
+1. Go to Supabase → **New project**.
+2. Choose a strong database password and the region closest to your users.
 3. Wait for provisioning to finish.
 
-## 2. Find your Project URL and anon key
+## 2. Find the Project URL and publishable key
 
 Dashboard → **Project Settings → API**:
 
-- **Project URL** → this is `VITE_SUPABASE_URL`
-- **`anon` / `publishable` key** → this is `VITE_SUPABASE_ANON_KEY`
+- Project URL → `VITE_SUPABASE_URL`
+- `anon` / publishable key → `VITE_SUPABASE_ANON_KEY`
 
-The anon key is safe for the browser. The **`service_role` key is NOT** — it
-must never appear in frontend code or in Git. It is only used by Edge
-Functions, and Supabase injects it into functions automatically.
+The publishable/anon key is designed for browser use. The **service-role key must never appear in frontend code, Vite variables, screenshots, or Git**. Supabase provides it to Edge Functions server-side.
 
-## 3. Apply the migrations
+## 3. Apply migrations
 
 ### Option A — Supabase CLI (recommended)
 
 ```bash
-npm i -g supabase            # one-time
-supabase login               # opens a browser to authorize
-supabase link --project-ref <your-project-ref>   # ref is in the project URL
-supabase db push             # applies every migration in order
+npm i -g supabase
+supabase login
+supabase link --project-ref <your-project-ref>
+supabase db push
+supabase migration list
 ```
+
+`migration list` should show the same versions in Local and Remote.
 
 ### Option B — SQL Editor
 
-1. Dashboard → **SQL Editor → New query**.
-2. Paste the full contents of `supabase/migrations/0001_initial.sql` → **Run**.
-3. Repeat for `0002_lead_notes_and_scheduling.sql`, then
-   `0003_security_hardening.sql` — **in this numeric order**.
+Dashboard → **SQL Editor → New query**, then run the complete files in this exact order:
 
-Verify: Dashboard → **Table Editor** should now show `profiles`, `services`,
-`ai_agents`, `automations`, `industries`, `case_studies`, `technologies`,
-`resources`, `jobs`, `contact_leads`, `lead_notes`, `automation_assessments`,
-`career_applications`, `media_library`, `seo_pages`, `legal_pages`,
-`announcements`, `social_links`, `admin_activity_logs`, `site_settings`.
+1. `supabase/migrations/0001_initial.sql`
+2. `supabase/migrations/0002_lead_notes_and_scheduling.sql`
+3. `supabase/migrations/0003_security_hardening.sql`
+4. `supabase/migrations/0004_unique_constraints.sql`
+5. `supabase/migrations/0005_production_hardening.sql`
 
-## 4. (Optional) Load starter content
+Verify the Table Editor contains the expected tables including `profiles`, `services`, `ai_agents`, `automations`, `industries`, `case_studies`, `technologies`, `resources`, `jobs`, `contact_leads`, `lead_notes`, `automation_assessments`, `career_applications`, `media_library`, `seo_pages`, `legal_pages`, `announcements`, `social_links`, `admin_activity_logs`, and `site_settings`.
 
-Run `supabase/seed.sql` in the SQL Editor. It inserts the services, agents,
-industries and jobs the public site ships with, so the CMS starts populated.
-Skip it if you plan to author content from the admin panel only.
+## 4. Load starter CMS content
+
+Run `supabase/seed.sql` in SQL Editor after all migrations. It is idempotent and can be run again safely when the seed changes.
+
+The seed intentionally leaves contact channels empty and seeds jobs unpublished/closed. Configure real contact details in Admin → Settings and publish real vacancies from Admin → Jobs.
 
 ## 5. Configure Auth
 
 Dashboard → **Authentication → Providers → Email**:
 
-- Keep **Email** enabled.
-- For a private admin panel, disable self-sign-up (**Sign-ups → turn off**)
-  and add admins manually (step 8). This prevents strangers from creating
-  login accounts that would sit in `profiles` as inactive editors.
+- Keep Email enabled.
+- For this private admin panel, disable public self-sign-up.
+- Add staff accounts manually.
 
-## 6. Configure storage
+## 6. Verify Storage
 
-The migrations already create both buckets with the right visibility:
+Migrations create and harden:
 
-| Bucket | Visibility | Purpose |
-| --- | --- | --- |
-| `site-media` | **Public** | Website images managed in Admin → Media |
-| `career-resumes` | **Private** | Applicant resumes — never public |
+| Bucket | Visibility | Server limits | Purpose |
+| --- | --- | --- | --- |
+| `site-media` | Public | 10 MB; JPG/PNG/WEBP/AVIF/SVG/MP4 | Admin-managed website media |
+| `career-resumes` | Private | 5 MB; PDF/DOC/DOCX | Applicant resumes |
 
-`0003_security_hardening.sql` additionally sets, **server-side**:
+Anonymous resume uploads are restricted to generated paths matching `pending/<uuid>.(pdf|doc|docx)`. Anonymous visitors cannot read, update, or delete resumes. HR/admin staff open them through short-lived signed URLs.
 
-- `career-resumes` max file size: **5 MB** (`file_size_limit`)
-- `career-resumes` allowed MIME types: **PDF / DOC / DOCX** only
-- anonymous uploads restricted to paths matching
-  `pending/<uuid>.(pdf|doc|docx)` — no traversal, no arbitrary names, no
-  overwrites (anon has INSERT only; reads are via **signed URLs** by HR/admin)
+## 7. Deploy Edge Functions
 
-Check both buckets exist under **Storage** and that `career-resumes` shows
-*Private*.
-
-## 7. Deploy the Edge Functions
+From the linked repository:
 
 ```bash
-supabase functions deploy submit-contact    --no-verify-jwt
+supabase functions deploy submit-contact --no-verify-jwt
 supabase functions deploy submit-assessment --no-verify-jwt
-supabase functions deploy submit-career     --no-verify-jwt
+supabase functions deploy submit-career --no-verify-jwt
 ```
 
-(`--no-verify-jwt` is required because anonymous visitors submit these forms.)
+`--no-verify-jwt` is intentional because anonymous visitors submit these public forms. The functions perform their own validation and use the server-side service role for inserts.
 
-The functions read two settings:
+Production origins already include:
 
-- `SUPABASE_SERVICE_ROLE_KEY` — injected by Supabase automatically. **The
-  functions fail closed (HTTP 503) if it is missing — they never fall back to
-  the anon key.**
-- `ALLOWED_ORIGINS` — *optional*. Comma-separated extra origins allowed by
-  CORS (e.g. a Netlify deploy-preview URL for testing):
+```text
+https://www.itcyber.in
+https://itcyber.in
+https://itcybertechnologiespvtltd.netlify.app
+```
 
-  ```bash
-  supabase secrets set ALLOWED_ORIGINS="https://deploy-preview-12--yoursite.netlify.app"
-  ```
+For Qwen, Netlify deploy previews, or another temporary hostname, add an extra allow-list entry:
 
-  Production CORS already allow-lists `https://www.itcyber.in` and
-  `https://itcyber.in`. Wildcards are not supported by design.
+```bash
+supabase secrets set ALLOWED_ORIGINS="https://your-preview-host.example"
+```
 
-## 8. Create the first admin (safely)
+Multiple extra origins are comma-separated. Do not use `*`.
 
-Never put an admin password in code or docs.
+## 8. Create the first admin
+
+Never store an admin password in code or docs.
 
 1. Dashboard → **Authentication → Users → Add user**.
-2. Enter the admin's email + password, tick **Auto confirm user**.
-   (The `handle_new_user` trigger creates their `profiles` row automatically.)
-3. In the **SQL Editor**, promote them:
+2. Enter the trusted admin email and password; auto-confirm the user.
+3. The auth trigger creates the profile.
+4. In SQL Editor promote that specific account:
 
-   ```sql
-   update public.profiles
-      set role   = 'super_admin',
-          active = true
-    where email  = 'you@itcyber.in';   -- ← the email you just added
-   ```
-
-Other roles: `admin`, `editor`, `sales`, `hr`. New accounts start
-`active = false` on purpose — a super_admin activates them from
-**Admin → Users**.
-
-## 9. Add frontend environment variables
-
-**Netlify** → Site configuration → **Environment variables** (never in Git):
-
+```sql
+update public.profiles
+set role = 'super_admin',
+    active = true
+where email = 'you@itcyber.in'
+returning id, email, role, active;
 ```
-VITE_SUPABASE_URL=<Project URL from step 2>
-VITE_SUPABASE_ANON_KEY=<anon key from step 2>
+
+Expected: one row with `role = super_admin` and `active = true`.
+
+Other roles are `admin`, `editor`, `sales`, and `hr`.
+
+## 9. Configure frontend environment variables
+
+### Local development
+
+Copy `.env.example` to `.env` and set:
+
+```env
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<publishable-key>
+VITE_SITE_URL=http://localhost:5173
+```
+
+Restart Vite after environment changes.
+
+### Netlify
+
+Netlify → Site configuration → **Environment variables**:
+
+```text
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<publishable-key>
 VITE_SITE_URL=https://www.itcyber.in
 ```
 
-Locally, copy `.env.example` to `.env` and fill the same three values.
-`.gitignore` already blocks `.env`.
+While testing only on the default Netlify hostname, `VITE_SITE_URL` may temporarily use that hostname. After changing any Vite variable, trigger **Clear cache and deploy site** because Vite injects these values at build time.
 
-## 10. Verify RLS is actually protecting data
+Never create a `VITE_SUPABASE_SERVICE_ROLE_KEY`.
 
-In the SQL Editor, run each of these **as the anon role** (tick "Run as
-authenticated user: OFF" — or use the built-in *PostgREST anon* context).
-Every one must return a permission error or zero rows:
+## 10. Verify RLS
+
+Anonymous visitors must not be able to read leads, assessments, applications, or admin logs, and must not be able to mutate CMS content directly. Test at minimum:
 
 ```sql
--- anonymous reads MUST fail / return nothing
 select * from public.contact_leads limit 1;
 select * from public.career_applications limit 1;
 select * from public.automation_assessments limit 1;
 select * from public.admin_activity_logs limit 1;
-
--- anonymous writes MUST fail
-update public.services set published = true where slug = 'custom-software';
-delete from public.jobs;
 ```
 
-Then verify the **profile privilege guard** (migration 0003). Log in as a
-non-super_admin (e.g. an `editor`) and run against *their own* row:
+Run those through an anon/PostgREST context, not as SQL Editor database owner. They must return no protected data.
+
+Also verify a normal authenticated user cannot self-promote:
 
 ```sql
-update public.profiles set active = true            where id = auth.uid(); -- MUST FAIL
-update public.profiles set role   = 'super_admin'   where id = auth.uid(); -- MUST FAIL
-update public.profiles set email  = 'x@x.io'        where id = auth.uid(); -- MUST FAIL
-update public.profiles set full_name = 'New Name'   where id = auth.uid(); -- allowed
+update public.profiles set active = true where id = auth.uid();
+update public.profiles set role = 'super_admin' where id = auth.uid();
+update public.profiles set email = 'x@example.com' where id = auth.uid();
 ```
 
-And as **super_admin**:
+These must fail for non-super-admin users. Updating their own `full_name` is allowed.
 
-```sql
-update public.profiles set role = 'sales', active = true
- where email = 'someone@itcyber.in';                                       -- allowed
-```
+## 11. Production smoke test
 
-Storage check: an anonymous 6 MB PDF upload to `career-resumes` must be
-rejected (size limit); a `.png` must be rejected (MIME); an upload to
-`resumes/evil.pdf` must be rejected (path policy).
+After frontend deployment and Edge Function deployment:
 
-## 11. Smoke-test the forms
-
-1. Deploy the frontend (see `NETLIFY_DEPLOYMENT.md`).
-2. Submit the contact form, the assessment wizard, and a job application
-   (with a small PDF resume).
-3. In the Supabase Table Editor confirm rows appear in `contact_leads`,
-   `automation_assessments` and `career_applications` — and the resume object
-   under `career-resumes/pending/`.
-4. Sign in at `/itcyberadmin/login` and verify the new lead appears on the
-   dashboard.
+1. Open `/itcyberadmin/login` and sign in with the active admin.
+2. Submit the public Contact form; confirm a row in `contact_leads`.
+3. Submit the assessment; confirm a row in `automation_assessments`.
+4. Publish one test job with applications open, submit a small resume, and confirm the row + private storage object.
+5. Close/unpublish that role and confirm the public application endpoint rejects new submissions for it.
+6. In Admin → Applications, confirm the resume opens through a signed URL.
+7. In Admin → Media, verify oversized/disallowed files are rejected.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
-| Forms show "submission service isn't reachable" | Frontend env vars missing — step 9 |
-| Forms fail with 503 | Function can't see the service-role key — redeploy after `supabase secrets set` |
-| CORS error in browser console | Origin not allow-listed — set `ALLOWED_ORIGINS` (step 7) |
-| "row-level security policy violation" in admin | Profile is inactive or role missing — step 8 |
-| Resume upload rejected | File must be PDF/DOC/DOCX, ≤ 5 MB, auto-named under `pending/` |
+| Admin says “Supabase is not configured” | Add Netlify/local Vite env vars and rebuild |
+| Forms return 503 | Redeploy Edge Functions and verify Supabase-provided function secrets |
+| Browser shows CORS error | Add the exact preview origin to `ALLOWED_ORIGINS` |
+| Admin gets RLS error | Verify the profile is active and has the required role |
+| Resume upload rejected | PDF/DOC/DOCX only, ≤ 5 MB, generated `pending/<uuid>` path |
+| Migration history differs | Run `supabase migration list`; do not edit already-applied historical migrations |
+
+## Release rule
+
+For every new production database change:
+
+1. Create the next migration (`0006_...sql`, etc.).
+2. Open a PR.
+3. Let CI typecheck/build and validate Edge Functions.
+4. Apply the migration to staging/production.
+5. Redeploy affected Edge Functions and frontend.
+6. Run the smoke tests above.
