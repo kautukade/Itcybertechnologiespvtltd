@@ -1,7 +1,10 @@
 {
-  "name": "sandbox-workspace",
+  "name": "itcyber-web-platform",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
