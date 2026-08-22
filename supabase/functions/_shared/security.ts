@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.112.3";
+
 const DEFAULT_ORIGINS = [
   "https://www.itcyber.in",
   "https://itcyber.in",
@@ -109,12 +111,8 @@ export async function requestFingerprint(req: Request): Promise<string> {
   return sha256Hex(source);
 }
 
-type RpcClient = {
-  rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
-};
-
 export async function consumePublicRateLimit(
-  admin: RpcClient,
+  admin: SupabaseClient,
   scope: string,
   fingerprint: string,
   limit: number,
