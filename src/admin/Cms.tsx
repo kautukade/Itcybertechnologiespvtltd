@@ -72,7 +72,7 @@ export const CMS_CONFIGS: Record<string, CmsConfig> = {
     fields: [
       { key: "name", label: "Name", type: "text" },
       { key: "slug", label: "Slug", type: "text" },
-      { key: "category", label: "Category", type: "select", options: ["sales", "support", "operations", "hr", "finance", "marketing"] },
+      { key: "category", label: "Category", type: "select", options: ["sales", "lead", "marketing", "support", "appointment", "operations", "hr", "finance"] },
       { key: "description", label: "Description", type: "textarea", span: true },
       { key: "workflow_json", label: "Workflow steps (JSON array)", type: "json", span: true, hint: '[{"node":"CRM","action":"Create record","detail":"…","tone":"action"}]' },
       { key: "integrations_json", label: "Integrations (JSON array)", type: "json", span: true },

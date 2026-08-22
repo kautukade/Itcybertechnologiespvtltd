@@ -4,8 +4,9 @@ import { MaskLines, Reveal, Scramble, useReducedMotion } from "../lib/motion";
 import { cn } from "../lib/utils";
 import { site } from "../data/site";
 import {
-  trustItems, beforeFlow, afterFlow, serviceCategories, agents, functionSolutions,
-  industries, techEcosystem, processSteps, whyPillars, securityPillars, resources, capabilitiesIntro,
+  trustItems, beforeFlow, afterFlow, functionSolutions,
+  techEcosystem, processSteps, whyPillars, securityPillars, capabilitiesIntro,
+  type Agent, type Industry, type ServiceCategory,
 } from "../data/content";
 import { Button, Section, SectionHead, Badge, IconTile, Tabs, CtaBand } from "../components/ui";
 import {
@@ -17,6 +18,7 @@ import HeroVisual from "../components/sections/HeroVisual";
 import EcosystemVisual from "../components/sections/EcosystemVisual";
 import { usePageMeta, orgSchema } from "../lib/seo";
 import { useSiteSettings } from "../lib/cms";
+import { usePublishedAgents, usePublishedIndustries, usePublishedResourcePreviews, usePublishedServiceCategories, type ResourcePreview } from "../lib/catalog";
 import WorkflowRunner from "../components/workflows/WorkflowRunner";
 import OpsDashboard from "../components/workflows/OpsDashboard";
 import AgentMicroDemo from "../components/sections/AgentMicroDemo";
@@ -405,12 +407,13 @@ function IntegrationOrbit() {
   );
 }
 
-function Capabilities() {
+function Capabilities({ categories, agents }: { categories: ServiceCategory[]; agents: Agent[] }) {
   const [agentsIdx, setAgentsIdx] = useState(0);
+  const previewCount = Math.max(1, Math.min(4, agents.length));
   useEffect(() => {
-    const id = setInterval(() => setAgentsIdx((v) => (v + 1) % 4), 1600);
+    const id = setInterval(() => setAgentsIdx((v) => (v + 1) % previewCount), 1600);
     return () => clearInterval(id);
-  }, []);
+  }, [previewCount]);
   /* Keyed by category id — never index-based, so a 5th (or Nth) category can
      never render an undefined icon or a mismatched visual. */
   const CAP_ICONS: Record<string, React.ReactNode> = {
@@ -470,7 +473,7 @@ function Capabilities() {
           lead={capabilitiesIntro.text}
         />
         <div className="mt-12 space-y-5">
-          {serviceCategories.map((cat, i) => (
+          {categories.map((cat, i) => (
             <Reveal key={cat.id} delay={0.05}>
               <article className={cn("group relative grid lg:grid-cols-2 gap-8 lg:gap-14 items-center bg-ink-900/70 hairline clip-corner p-[clamp(1.25rem,3vw,2.75rem)] overflow-hidden transition-colors duration-500 hover:bg-ink-850")}>
                 <div className="absolute top-0 bottom-0 left-0 w-[2px] bg-gradient-to-b from-brand-500 to-cyan-ic opacity-0 group-hover:opacity-100 transition-opacity duration-500" aria-hidden />
@@ -577,7 +580,7 @@ function FunctionSolutions() {
 
 /* --------------------------------- INDUSTRIES -------------------------------- */
 
-function IndustriesStrip() {
+function IndustriesStrip({ industries }: { industries: Industry[] }) {
   return (
     <Section tone="paper">
       <div className="wrap flex flex-wrap items-end justify-between gap-4">
@@ -868,7 +871,7 @@ function Security() {
 
 /* --------------------------------- RESOURCES --------------------------------- */
 
-function Resources() {
+function Resources({ resources }: { resources: ResourcePreview[] }) {
   return (
     <Section tone="paper" id="resources" className="scroll-mt-20">
       <div className="wrap">
@@ -877,14 +880,14 @@ function Resources() {
         </div>
         <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {resources.map((r, i) => (
-            <Reveal key={r.title} delay={i * 0.06}>
+            <Reveal key={r.id} delay={i * 0.06}>
               <Link to={r.to} className="group relative block h-full bg-white hairline-light clip-corner p-5 overflow-hidden transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_50px_-22px_rgba(20,32,58,.35)]">
                 <p className="flex items-center justify-between font-mono text-[0.6rem] uppercase tracking-[0.16em]">
                   <span className="text-brand-600">{r.kind}</span>
                   <span className="text-ink-400">{r.minutes}</span>
                 </p>
                 <h3 className="font-display font-bold text-ink-900 text-[1.05rem] tracking-tight mt-3 leading-snug group-hover:text-brand-600 transition-colors">{r.title}</h3>
-                <p className="text-[0.83rem] text-ink-500 mt-2 leading-relaxed">{r.blurb}</p>
+                <p className="text-[0.83rem] text-ink-500 mt-2 leading-relaxed">{r.summary}</p>
                 <span className="mt-4 inline-flex items-center gap-1.5 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-ink-500 group-hover:text-brand-600 transition-colors">
                   Read <IconArrow size={12} className="transition-transform duration-300 group-hover:translate-x-1" />
                 </span>
@@ -900,12 +903,16 @@ function Resources() {
 /* ----------------------------------- PAGE ------------------------------------ */
 
 export default function Home() {
+  const homeAgents = usePublishedAgents();
+  const homeIndustries = usePublishedIndustries();
+  const homeResources = usePublishedResourcePreviews();
+  const homeServiceCategories = usePublishedServiceCategories();
   return (
     <>
       <Hero />
       <TrustStrip />
       <ProblemSolution />
-      <Capabilities />
+      <Capabilities categories={homeServiceCategories} agents={homeAgents} />
       <Section tone="deeper" id="demo" className="noise scroll-mt-20 pt-[clamp(4rem,8vw,6.5rem)]">
         <div className="absolute inset-0 grid-bg opacity-40" aria-hidden />
         <div className="relative wrap">
@@ -943,7 +950,7 @@ export default function Home() {
             </Reveal>
           </div>
           <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {agents.map((a, i) => (
+            {homeAgents.map((a, i) => (
               <Reveal key={a.id} delay={i * 0.05}>
                 <Link to="/ai-agents" className="group relative block h-full bg-white hairline-light clip-corner p-5 transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_24px_54px_-24px_rgba(46,99,232,.3)] overflow-hidden">
                   <span className="absolute top-0 right-0 w-16 h-16 bg-brand-500/[.06] rounded-bl-full group-hover:bg-brand-500/[.12] transition-colors duration-500" aria-hidden />
@@ -961,7 +968,7 @@ export default function Home() {
       </Section>
 
       <FunctionSolutions />
-      <IndustriesStrip />
+      <IndustriesStrip industries={homeIndustries} />
       <WorkTeaser />
       <FullStackSection />
       <TechEcosystem />
@@ -969,7 +976,7 @@ export default function Home() {
       <Process />
       <WhyItcyber />
       <Security />
-      <Resources />
+      <Resources resources={homeResources} />
 
       <Section tone="deeper" className="noise">
         <div className="absolute inset-0 grid-bg opacity-40" aria-hidden />
