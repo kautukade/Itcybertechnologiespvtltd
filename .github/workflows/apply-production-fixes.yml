@@ -1,0 +1,315 @@
+name: Apply final production readiness fixes
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout production branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: production-readiness-2026-08-22
+          fetch-depth: 0
+
+      - name: Apply production fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Expected block not found in {path}: {old[:100]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace('src/pages/Contact.tsx', 'import { useMemo, useRef, useState } from "react";', 'import { useEffect, useMemo, useRef, useState } from "react";')
+          replace('src/pages/Contact.tsx', '  const [params] = useSearchParams();\n  const [tab, setTab] = useState<"form" | "assessment">(params.get("mode") === "assessment" ? "assessment" : "form");', '''  const [params, setParams] = useSearchParams();
+  const [tab, setTab] = useState<"form" | "assessment">(params.get("mode") === "assessment" ? "assessment" : "form");
+
+  useEffect(() => {
+    setTab(params.get("mode") === "assessment" ? "assessment" : "form");
+  }, [params]);
+
+  const selectTab = (nextTab: "form" | "assessment") => {
+    setTab(nextTab);
+    const next = new URLSearchParams(params);
+    if (nextTab === "assessment") next.set("mode", "assessment");
+    else next.delete("mode");
+    setParams(next, { replace: true });
+  };''')
+          replace('src/pages/Contact.tsx', '                  onClick={() => setTab(t.id)}', '                  onClick={() => selectTab(t.id)}')
+          replace('src/pages/Contact.tsx', '''        Thanks, {name.split(" ")[0]} — it's safely stored and a real person reviews every submission.
+        Your details are safely stored and a real engineer reviews every submission. We'll reply to <strong className="text-ink-800">{email}</strong> as soon as it's read.''', '''        Thanks, {name.split(" ")[0]} — your details are stored securely and reviewed by a real engineer. We'll reply to <strong className="text-ink-800">{email}</strong> as soon as it's read.''')
+
+          replace('src/components/layout/Navbar.tsx', '''  /* keyboard: Escape closes menus; focus moves into the mobile sheet */
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileOpen(false);
+    document.addEventListener("keydown", onKey);
+    closeRef.current?.focus();
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);''', '''  /* keyboard: trap focus inside the mobile sheet, Escape closes, focus returns to trigger */
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileDialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (mobileDialogRef.current) mobileDialogRef.current.inert = !mobileOpen;
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : menuButtonRef.current;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMobileOpen(false);
+        return;
+      }
+      if (e.key !== "Tab" || !mobileDialogRef.current) return;
+      const focusable = Array.from(mobileDialogRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter((el) => el.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    closeRef.current?.focus();
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      queueMicrotask(() => previouslyFocused?.focus());
+    };
+  }, [mobileOpen]);''')
+          replace('src/components/layout/Navbar.tsx', '''          <button
+            className="lg:hidden w-11 h-11 inline-flex items-center justify-center text-white hairline clip-corner hover:bg-white/[.06] transition-colors"''', '''          <button
+            ref={menuButtonRef}
+            className="lg:hidden w-11 h-11 inline-flex items-center justify-center text-white hairline clip-corner hover:bg-white/[.06] transition-colors"''')
+          replace('src/components/layout/Navbar.tsx', '''      <div
+        className={cn(
+          "fixed inset-0 z-50 lg:hidden flex flex-col bg-ink-950 transition-all duration-500 ease-[cubic-bezier(.16,1,.3,1)]",''', '''      <div
+        ref={mobileDialogRef}
+        aria-hidden={!mobileOpen}
+        className={cn(
+          "fixed inset-0 z-50 lg:hidden flex flex-col bg-ink-950 transition-all duration-500 ease-[cubic-bezier(.16,1,.3,1)]",''')
+
+          Path('src/lib/seo.ts').write_text(r'''/** Per-route SEO metadata with optional Supabase CMS overrides. */
+import { useEffect } from "react";
+import { SITE_URL, supabase } from "./supabase";
+import type { SeoPageRow } from "../types/db";
+
+export interface PageMeta {
+  title: string;
+  description: string;
+  path: string;
+  keywords?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  robots?: string;
+  schema?: Record<string, unknown>;
+}
+
+let metadataGeneration = 0;
+
+function upsertMeta(attr: "name" | "property", key: string, content: string) {
+  let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`);
+  if (!el) {
+    el = document.createElement("meta");
+    el.setAttribute(attr, key);
+    document.head.appendChild(el);
+  }
+  el.setAttribute("content", content);
+}
+function removeMeta(attr: "name" | "property", key: string) {
+  document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`)?.remove();
+}
+function upsertCanonical(href: string) {
+  let el = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+  if (!el) {
+    el = document.createElement("link");
+    el.setAttribute("rel", "canonical");
+    document.head.appendChild(el);
+  }
+  el.setAttribute("href", href);
+}
+function absoluteUrl(value: string | undefined, fallbackPath: string): string {
+  try { return new URL(value || fallbackPath, SITE_URL).toString(); }
+  catch { return new URL(fallbackPath, SITE_URL).toString(); }
+}
+function pathFromCanonical(value: string | null | undefined, fallback: string): string {
+  if (!value) return fallback;
+  try {
+    const url = new URL(value, SITE_URL);
+    return `${url.pathname}${url.search}${url.hash}` || fallback;
+  } catch { return fallback; }
+}
+function schemaObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+function applyBaseMeta(meta: PageMeta) {
+  const canonical = absoluteUrl(meta.path, "/");
+  const ogImage = absoluteUrl(meta.ogImage, "/og/itcyber-default.svg");
+  const ogTitle = meta.ogTitle ?? meta.title;
+  const ogDescription = meta.ogDescription ?? meta.description;
+  document.title = meta.title;
+  upsertMeta("name", "description", meta.description);
+  if (meta.keywords?.trim()) upsertMeta("name", "keywords", meta.keywords.trim()); else removeMeta("name", "keywords");
+  upsertMeta("name", "robots", meta.robots ?? "index, follow");
+  upsertCanonical(canonical);
+  upsertMeta("property", "og:title", ogTitle);
+  upsertMeta("property", "og:description", ogDescription);
+  upsertMeta("property", "og:url", canonical);
+  upsertMeta("property", "og:type", "website");
+  upsertMeta("property", "og:image", ogImage);
+  upsertMeta("name", "twitter:card", "summary_large_image");
+  upsertMeta("name", "twitter:title", ogTitle);
+  upsertMeta("name", "twitter:description", ogDescription);
+  upsertMeta("name", "twitter:image", ogImage);
+  let schemaEl = document.getElementById("page-schema");
+  if (meta.schema) {
+    if (!schemaEl) {
+      schemaEl = document.createElement("script");
+      schemaEl.id = "page-schema";
+      (schemaEl as HTMLScriptElement).type = "application/ld+json";
+      document.head.appendChild(schemaEl);
+    }
+    schemaEl.textContent = JSON.stringify(meta.schema);
+  } else if (schemaEl) schemaEl.remove();
+}
+export function applyPageMeta(meta: PageMeta) {
+  const generation = ++metadataGeneration;
+  applyBaseMeta(meta);
+  if (!supabase || meta.path.startsWith("/itcyberadmin")) return;
+  void (async () => {
+    const { data, error } = await supabase.from("seo_pages").select("*").eq("route", meta.path).maybeSingle();
+    if (error || !data || generation !== metadataGeneration) return;
+    const row = data as SeoPageRow;
+    applyBaseMeta({
+      title: row.title ?? meta.title,
+      description: row.description ?? meta.description,
+      keywords: row.keywords ?? meta.keywords,
+      path: pathFromCanonical(row.canonical, meta.path),
+      ogTitle: row.og_title ?? meta.ogTitle,
+      ogDescription: row.og_description ?? meta.ogDescription,
+      ogImage: row.og_image ?? meta.ogImage,
+      robots: row.robots ?? meta.robots,
+      schema: schemaObject(row.schema_json) ?? meta.schema,
+    });
+  })().catch(() => {});
+}
+export function usePageMeta(meta: PageMeta) {
+  useEffect(() => {
+    applyPageMeta(meta);
+  }, [meta.path, meta.title, meta.description, meta.keywords, meta.ogTitle, meta.ogDescription, meta.ogImage, meta.robots]);
+}
+export const orgSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "ITCYBER Technologies Pvt Ltd",
+  url: SITE_URL,
+  logo: `${SITE_URL}/favicon.svg`,
+};
+''', encoding='utf-8')
+
+          replace('index.html', '<script type="application/ld+json">', '<script id="page-schema" type="application/ld+json">')
+
+          Path('src/pages/Resources.tsx').write_text(r'''import { Link, useParams } from "react-router-dom";
+import { Reveal, Scramble } from "../lib/motion";
+import { Button, Section, SectionHead, Badge } from "../components/ui";
+import { IconArrow, IconArrowUpRight } from "../components/icons";
+import { resources as staticResources } from "../data/content";
+import { useCollection } from "../lib/cms";
+import { usePageMeta } from "../lib/seo";
+import type { ResourceRow } from "../types/db";
+import NotFound from "./NotFound";
+
+export default function Resources() {
+  const { slug } = useParams();
+  const { data: liveRows, source, loading } = useCollection("resources", [] as ResourceRow[]);
+  const current = slug && source === "live" ? liveRows.find((row) => row.slug === slug) : undefined;
+  usePageMeta({
+    title: current ? `${current.title} | ITCYBER Resources` : "Resources — AI, Automation & Software Field Notes | ITCYBER",
+    description: current?.summary ?? "Practical ITCYBER field notes on AI agents, automation, custom software, websites and business systems.",
+    path: slug ? `/resources/${slug}` : "/resources",
+  });
+  if (loading) return <Section tone="dark" className="min-h-[60vh]"><div className="wrap py-16"><div className="h-8 w-72 bg-white/[.08] animate-pulse" /><div className="mt-6 h-40 bg-white/[.05] hairline animate-pulse" /></div></Section>;
+  if (slug) {
+    if (!current) return <NotFound />;
+    const paragraphs = (current.body ?? "").split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+    return <><section className="relative bg-ink-950 text-ink-100 overflow-hidden noise"><div className="absolute inset-0 grid-bg" aria-hidden /><div className="relative wrap py-[clamp(3rem,7vw,6rem)] max-w-4xl"><Reveal><Badge tone="dark">{current.kind}</Badge></Reveal><h1 className="font-display font-bold text-white tracking-tight mt-5 text-[clamp(2.1rem,5vw,3.8rem)] leading-[1.05]">{current.title}</h1>{current.summary && <p className="mt-5 max-w-2xl text-ink-200 text-[1.05rem] leading-relaxed">{current.summary}</p>}</div></section><Section tone="paper"><article className="wrap max-w-3xl">{paragraphs.length ? paragraphs.map((paragraph, index) => <p key={`${current.id}-${index}`} className="text-ink-700 leading-8 text-[1rem] mb-6 whitespace-pre-wrap">{paragraph}</p>) : <p className="text-ink-500">This resource is being prepared for publication.</p>}<div className="mt-10 pt-6 border-t border-ink-900/[.1] flex flex-wrap gap-3"><Button to="/resources" variant="light">All Resources</Button><Button to="/contact" arrow>Discuss Your Project</Button></div></article></Section></>;
+  }
+  const cards = source === "live" ? liveRows.map((row) => ({ id: row.id, title: row.title, kind: row.kind, summary: row.summary ?? "", to: `/resources/${row.slug}`, meta: "Field note" })) : staticResources.map((row, index) => ({ id: `static-${index}`, title: row.title, kind: row.kind, summary: row.blurb, to: row.to, meta: row.minutes }));
+  return <><section className="relative bg-ink-950 text-ink-100 overflow-hidden noise"><div className="absolute inset-0 grid-bg" aria-hidden /><div className="relative wrap pt-[clamp(3rem,6vw,5rem)] pb-[clamp(3rem,6vw,5rem)]"><Reveal><p className="eyebrow text-cyan-ic"><Scramble text="RESOURCES // PRACTICAL FIELD NOTES" /></p></Reveal><h1 className="font-display font-bold text-white tracking-tight mt-5 text-[clamp(2.1rem,5vw,3.8rem)] leading-[1.05]">Practical reading. <span className="text-brand-400">Zero fluff.</span></h1><p className="mt-5 max-w-2xl text-ink-200 leading-relaxed">Playbooks, field notes and implementation guidance from the systems we design and operate.</p></div></section><Section tone="paper"><div className="wrap"><SectionHead tone="paper" eyebrow="library" title={<>Build with better <span className="text-brand-600">context.</span></>} />{cards.length ? <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{cards.map((card, index) => <Reveal key={card.id} delay={index * 0.04}><Link to={card.to} className="group block h-full bg-white hairline-light clip-corner p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_45px_-22px_rgba(20,32,58,.35)]"><p className="font-mono text-[0.62rem] uppercase tracking-[0.16em] text-brand-600 flex items-center justify-between gap-3"><span>{card.kind}</span><span className="text-ink-400">{card.meta}</span></p><h2 className="font-display font-bold text-ink-900 text-[1.1rem] mt-3 group-hover:text-brand-600 transition-colors">{card.title}</h2><p className="text-[0.86rem] text-ink-500 mt-2 leading-relaxed">{card.summary}</p><span className="mt-5 inline-flex items-center gap-1.5 font-mono text-[0.66rem] uppercase tracking-[0.12em] text-brand-600">Read <IconArrow size={12} /></span></Link></Reveal>)}</div> : <div className="mt-10 bg-white hairline-light clip-corner p-8 text-center"><p className="text-ink-600">No resources are currently published.</p><Button to="/contact" variant="light" className="mt-5" arrow>Ask an Engineer</Button></div>}<div className="mt-10 flex justify-end"><Link to="/contact" className="font-mono text-[0.7rem] uppercase tracking-[0.14em] text-brand-600 inline-flex items-center gap-1.5">Need a specific playbook? <IconArrowUpRight size={13} /></Link></div></div></Section></>;
+}
+''', encoding='utf-8')
+
+          replace('src/App.tsx', 'const Contact = React.lazy(() => import("./pages/Contact"));\nconst Legal = React.lazy(() => import("./pages/Legal"));', 'const Contact = React.lazy(() => import("./pages/Contact"));\nconst Resources = React.lazy(() => import("./pages/Resources"));\nconst Legal = React.lazy(() => import("./pages/Legal"));')
+          replace('src/App.tsx', '  "/contact": ["Contact ITCYBER — Discuss Your Website, App, Software or AI Project", "Tell us what you want to build. Free consultation and a 2-minute project assessment for websites, web apps, custom software, mobile apps, AI systems and automation."],', '  "/contact": ["Contact ITCYBER — Discuss Your Website, App, Software or AI Project", "Tell us what you want to build. Free consultation and a 2-minute project assessment for websites, web apps, custom software, mobile apps, AI systems and automation."],\n  "/resources": ["Resources — AI, Automation & Software Field Notes | ITCYBER", "Practical field notes on AI agents, automation, software, websites and business systems."],')
+          replace('src/App.tsx', '''    if (pathname.startsWith("/itcyberadmin")) {
+      applyPageMeta({ title: "ITCYBER Admin", description: "Restricted area", path: pathname, robots: "noindex, nofollow" });
+      return;
+    }
+    let entry = META[pathname];''', '''    if (pathname.startsWith("/itcyberadmin")) {
+      applyPageMeta({ title: "ITCYBER Admin", description: "Restricted area", path: pathname, robots: "noindex, nofollow" });
+      return;
+    }
+    const pageOwnsMeta = pathname === "/" || pathname === "/web-development" || pathname === "/app-development" || pathname === "/careers" || pathname === "/contact" || pathname === "/resources" || pathname.startsWith("/resources/");
+    if (pageOwnsMeta) return;
+    let entry = META[pathname];''')
+          replace('src/App.tsx', '            <Route path="/contact" element={<Contact />} />\n            <Route path="/privacy-policy" element={<Legal />} />', '            <Route path="/contact" element={<Contact />} />\n            <Route path="/resources" element={<Resources />} />\n            <Route path="/resources/:slug" element={<Resources />} />\n            <Route path="/privacy-policy" element={<Legal />} />')
+
+          replace('src/data/site.ts', '{ label: "Automation Field Notes", to: "/#resources", blurb: "Playbooks from live deployments" },', '{ label: "Automation Field Notes", to: "/resources", blurb: "Published playbooks and practical field notes" },')
+          replace('public/sitemap.xml', '  <url><loc>https://www.itcyber.in/contact</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>\n', '  <url><loc>https://www.itcyber.in/contact</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>\n  <url><loc>https://www.itcyber.in/resources</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n')
+
+          Path('vite.config.js').write_text(r'''import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  server: { host: "0.0.0.0", port: 3000, strictPort: true, hmr: { port: 3000 } },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("three") || id.includes("@react-three")) return "three-vendor";
+          if (id.includes("@supabase")) return "supabase-vendor";
+          if (id.includes("framer-motion")) return "motion-vendor";
+          if (id.includes("recharts")) return "charts-vendor";
+          if (id.includes("react") || id.includes("scheduler")) return "react-vendor";
+          return "vendor";
+        },
+      },
+    },
+  },
+});
+''', encoding='utf-8')
+
+          # Remove the branch-local trigger helper if it exists; it is not production code.
+          Path('.github/workflows/apply-production-fixes.yml').unlink(missing_ok=True)
+          PY
+
+      - name: Commit and push production branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Finalize production readiness fixes"
+          git push origin production-readiness-2026-08-22
