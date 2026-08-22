@@ -16,7 +16,7 @@
  *  4. On error-boundary trip or context loss the canvas unmounts and the
  *     SVG base layer simply remains.
  */
-import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import OpsNetwork from "../workflows/OpsNetwork";
 import { OPS_NODES } from "../three/opsNodes";
 import { useReducedMotion } from "../../lib/motion";
@@ -37,12 +37,12 @@ export function detectVisualTier(): VisualTier {
     return "flat";
   }
   const width = Math.max(window.innerWidth || 0, document.documentElement.clientWidth || 0);
-  if (width < 520) return "flat"; // very small phones → the premium animated SVG pipeline
+  if (width < 520) return "flat";
   const nav = navigator as Navigator & { deviceMemory?: number };
   const mem = nav.deviceMemory ?? 8;
   const cores = navigator.hardwareConcurrency ?? 8;
-  if (width < 1024) return "medium"; // tablets, mid-size windows, preview panes
-  if (mem <= 6 || cores <= 6) return "medium"; // lower-spec laptops → lighter 3D, still 3D
+  if (width < 1024) return "medium";
+  if (mem <= 6 || cores <= 6) return "medium";
   return "high";
 }
 
@@ -67,13 +67,45 @@ const EVENTS = [
 ];
 
 export default function HeroVisual() {
-  const tier = useMemo(detectVisualTier, []);
+  const [tier, setTier] = useState<VisualTier>(() => detectVisualTier());
   const reduce = useReducedMotion();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(true);
   const [eventIdx, setEventIdx] = useState(0);
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
+
+  /* Re-evaluate capability after preview-pane resizes/orientation changes.
+     This fixes the common case where a page initially mounts in a narrow
+     builder pane as FLAT and is then expanded to desktop size. */
+  useEffect(() => {
+    let raf = 0;
+    const update = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const next = detectVisualTier();
+        setTier((prev) => {
+          if (prev !== next) {
+            setReady(false);
+            setFailed(false);
+          }
+          return next;
+        });
+      });
+    };
+
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    window.addEventListener("resize", update, { passive: true });
+    window.addEventListener("orientationchange", update);
+    motion.addEventListener("change", update);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+      motion.removeEventListener("change", update);
+    };
+  }, []);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -97,7 +129,6 @@ export default function HeroVisual() {
 
   return (
     <div ref={wrapRef} className="relative h-[340px] sm:h-[430px] md:h-[480px] lg:h-[540px] xl:h-[600px] w-full">
-      {/* dev-only tier diagnostic — stripped from production builds */}
       {import.meta.env.DEV && (
         <p
           aria-hidden
@@ -108,14 +139,12 @@ export default function HeroVisual() {
         </p>
       )}
 
-      {/* base layer — always present, never blank */}
       <div className={cn("absolute inset-0 z-0 transition-opacity duration-1000", show3D && "opacity-0")}>
         <OpsNetwork />
       </div>
 
-      {/* 3D layer — lazy chunk, fades in after the first rendered frame */}
       {attempt3D && (
-        <SceneBoundary>
+        <SceneBoundary key={tier}>
           <Suspense fallback={null}>
             <div
               className={cn(
@@ -135,7 +164,6 @@ export default function HeroVisual() {
         </SceneBoundary>
       )}
 
-      {/* overlays for the 3D variant (the SVG variant carries its own) */}
       {show3D && (
         <>
           <p className="absolute top-2 right-2 z-10 font-mono text-[0.58rem] uppercase tracking-[0.16em] text-ink-400 bg-ink-950/70 hairline px-2 py-1 clip-corner pointer-events-none">
