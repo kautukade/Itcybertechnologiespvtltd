@@ -13,7 +13,9 @@ export interface SiteContact {
   careersEmail: string;
   /** Full international format, digits only — used to build wa.me links */
   whatsappNumber: string;
+  /** Human-readable dedicated call number, e.g. +91 98765 43210 */
   phoneDisplay: string;
+  /** Legacy compatibility field; public callers should use getPhoneHref(). */
   phoneHref: string;
   address: string;
   hours: string;
@@ -37,6 +39,8 @@ export interface SiteConfig {
 }
 
 const wa = env.VITE_WHATSAPP_NUMBER ?? "";
+const phoneDisplay = env.VITE_PHONE_DISPLAY ?? "";
+const phoneDigits = phoneDisplay.replace(/[^\d]/g, "");
 
 export const site: SiteConfig = {
   name: "ITCYBER Technologies Pvt Ltd",
@@ -53,8 +57,8 @@ export const site: SiteConfig = {
     salesEmail: env.VITE_SALES_EMAIL ?? "",
     careersEmail: env.VITE_CAREERS_EMAIL ?? "",
     whatsappNumber: wa,
-    phoneDisplay: env.VITE_PHONE_DISPLAY ?? "",
-    phoneHref: wa ? `tel:+${wa}` : "",
+    phoneDisplay,
+    phoneHref: phoneDigits.length >= 7 ? `tel:${phoneDisplay.startsWith("+") ? "+" : ""}${phoneDigits}` : "",
     address: "India · Serving clients nationwide & remotely",
     hours: "Mon–Sat, 10:00–19:00 IST",
   },
@@ -80,11 +84,8 @@ export const site: SiteConfig = {
   },
 };
 
-/* ── NOTE: contact-channel guards live in src/lib/siteSettings.ts and are
-     evaluated at RUNTIME against the merged (admin-editable) config. The old
-     module-load-time constants (contactReady / emailReady / waLink) were
-     removed on purpose: they froze env values and ignored Admin → Settings
-     updates. Use useSiteConfig() + hasEmail / hasWhatsApp / getWhatsAppLink. ── */
+/* Contact-channel guards live in src/lib/siteSettings.ts and are evaluated at
+   runtime against the merged admin-editable config. */
 
 export const nav = {
   primary: [
