@@ -5,8 +5,8 @@
  * `site_settings` row when Supabase is configured (see useSiteSettings in
  * lib/cms.ts, which calls setSiteConfig). Public components must read
  * contact details through `useSiteConfig()` + the helpers below — never via
- * module-load-time constants — so Admin → Settings edits (email, WhatsApp,
- * phone, address, hours) take effect on the live site after refresh.
+ * module-load-time constants — so Admin → Settings edits take effect after
+ * refresh.
  */
 import { useSyncExternalStore } from "react";
 import { site as staticSite, type SiteConfig } from "../data/site";
@@ -31,23 +31,29 @@ function subscribe(cb: () => void): () => void {
   };
 }
 
-/** Reactive runtime config: env defaults → merged with DB values once loaded. */
 export function useSiteConfig(): SiteConfig {
   return useSyncExternalStore(subscribe, getSiteConfig, getSiteConfig);
 }
 
-/* ── runtime contact helpers (always derived from CURRENT config) ── */
+const phoneDigits = (value: string | null | undefined): string =>
+  (value ?? "").replace(/[^\d]/g, "");
 
-export const hasPhone = (cfg: SiteConfig): boolean =>
-  /^\d{10,15}$/.test(cfg.contact.whatsappNumber ?? "");
+export const hasWhatsApp = (cfg: SiteConfig): boolean =>
+  /^\d{10,15}$/.test(phoneDigits(cfg.contact.whatsappNumber));
 
-export const hasWhatsApp = hasPhone;
+/** A callable phone number is independent from the WhatsApp channel. */
+export const hasPhone = (cfg: SiteConfig): boolean => {
+  const digits = phoneDigits(cfg.contact.phoneDisplay);
+  return /^\d{7,15}$/.test(digits);
+};
 
 /** wa.me link or null when WhatsApp is not configured — callers must hide the CTA. */
-export const getWhatsAppLink = (cfg: SiteConfig, message: string): string | null =>
-  hasWhatsApp(cfg)
-    ? `https://wa.me/${cfg.contact.whatsappNumber}?text=${encodeURIComponent(message)}`
+export const getWhatsAppLink = (cfg: SiteConfig, message: string): string | null => {
+  const digits = phoneDigits(cfg.contact.whatsappNumber);
+  return hasWhatsApp(cfg)
+    ? `https://wa.me/${digits}?text=${encodeURIComponent(message)}`
     : null;
+};
 
 export const hasEmail = (cfg: SiteConfig): boolean =>
   (cfg.contact.email ?? "").trim().length > 3;
@@ -55,9 +61,10 @@ export const hasEmail = (cfg: SiteConfig): boolean =>
 export const hasCareersEmail = (cfg: SiteConfig): boolean =>
   (cfg.contact.careersEmail ?? "").trim().length > 3;
 
-/** tel: href recomputed from the CURRENT config — never frozen from env vars. */
+/** tel: href derived only from the dedicated phone display field. */
 export function getPhoneHref(cfg: SiteConfig): string {
-  if (hasPhone(cfg)) return `tel:+${cfg.contact.whatsappNumber}`;
-  const digits = (cfg.contact.phoneDisplay ?? "").replace(/[^+\d]/g, "");
-  return digits.length > 5 ? `tel:${digits}` : "";
+  if (!hasPhone(cfg)) return "";
+  const raw = (cfg.contact.phoneDisplay ?? "").trim();
+  const digits = phoneDigits(raw);
+  return raw.startsWith("+") ? `tel:+${digits}` : `tel:${digits}`;
 }
