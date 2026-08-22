@@ -9,7 +9,6 @@ import { site } from "../data/site";
 import { useCollection } from "../lib/cms";
 import type { ServiceRow } from "../types/db";
 
-/* Canonical five-category icon map — ids match content.ts and the admin CMS. */
 const icons: Record<string, React.ReactNode> = {
   ai: <IconAgent size={22} />,
   software: <IconCode size={22} />,
@@ -22,25 +21,33 @@ export default function Services() {
   const { hash } = useLocation();
   const [activeCat, setActiveCat] = useState("ai");
 
-  /* Live CMS: published `services` rows replace the bundled item lists when the
-     query succeeds; the static structure (and design) is the fallback. */
+  /*
+   * Fallback content is used only when Supabase is absent or the query fails.
+   * Once a live query succeeds, the CMS publication state is authoritative:
+   * unpublished/removed rows must not silently reappear from bundled content.
+   */
   const { data: liveServices, source } = useCollection("services", [] as ServiceRow[]);
   const categories = useMemo<ServiceCategory[]>(() => {
-    if (source !== "live" || liveServices.length === 0) return serviceCategories;
-    return serviceCategories.map((cat) => {
+    if (source !== "live") return serviceCategories;
+    return serviceCategories.flatMap((cat) => {
       const rows = liveServices.filter((s) => s.category === cat.id);
-      return rows.length
-        ? { ...cat, items: rows.map((s) => ({ name: s.title, blurb: s.short_description ?? "" })) }
-        : cat;
+      if (rows.length === 0) return [];
+      return [{ ...cat, items: rows.map((s) => ({ name: s.title, blurb: s.short_description ?? "" })) }];
     });
   }, [liveServices, source]);
 
   useEffect(() => {
     if (hash) {
       const id = hash.replace("#", "");
-      if (categories.some((c) => c.id === id)) setActiveCat(id);
+      if (categories.some((c) => c.id === id)) {
+        setActiveCat(id);
+        return;
+      }
     }
-  }, [hash, categories]);
+    if (categories.length > 0 && !categories.some((c) => c.id === activeCat)) {
+      setActiveCat(categories[0].id);
+    }
+  }, [hash, categories, activeCat]);
 
   const scrollTo = (id: string) => {
     setActiveCat(id);
@@ -49,7 +56,6 @@ export default function Services() {
 
   return (
     <>
-      {/* hero */}
       <section className="relative bg-ink-950 text-ink-100 overflow-hidden noise">
         <div className="absolute inset-0 grid-bg" aria-hidden />
         <div className="absolute inset-0" style={{ background: "radial-gradient(50rem 30rem at 75% 10%, rgba(62,123,255,.13), transparent 60%)" }} aria-hidden />
@@ -70,26 +76,37 @@ export default function Services() {
               every piece is built to work with the others.
             </p>
           </Reveal>
-          <Reveal delay={0.3}>
-            <div className="mt-8 flex flex-wrap gap-2">
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => scrollTo(c.id)}
-                  className={cn(
-                    "font-mono text-[0.7rem] uppercase tracking-[0.14em] px-4 h-10 inline-flex items-center gap-2 clip-corner transition-all duration-300",
-                    activeCat === c.id ? "bg-brand-500 text-white" : "hairline text-ink-200 hover:text-white hover:bg-white/[.05]"
-                  )}
-                >
-                  <span className="text-cyan-ic">{c.index}</span> {c.title}
-                </button>
-              ))}
-            </div>
-          </Reveal>
+          {categories.length > 0 && (
+            <Reveal delay={0.3}>
+              <div className="mt-8 flex flex-wrap gap-2">
+                {categories.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => scrollTo(c.id)}
+                    className={cn(
+                      "font-mono text-[0.7rem] uppercase tracking-[0.14em] px-4 h-10 inline-flex items-center gap-2 clip-corner transition-all duration-300",
+                      activeCat === c.id ? "bg-brand-500 text-white" : "hairline text-ink-200 hover:text-white hover:bg-white/[.05]"
+                    )}
+                  >
+                    <span className="text-cyan-ic">{c.index}</span> {c.title}
+                  </button>
+                ))}
+              </div>
+            </Reveal>
+          )}
         </div>
       </section>
 
-      {/* category sections */}
+      {source === "live" && categories.length === 0 && (
+        <Section tone="paper">
+          <div className="wrap max-w-2xl text-center">
+            <h2 className="font-display font-bold text-ink-900 text-2xl">Service catalogue is being updated.</h2>
+            <p className="text-ink-500 mt-3">No services are currently published in the CMS. Contact us to discuss a custom requirement.</p>
+            <Button to="/contact" variant="light" className="mt-6" arrow>Discuss Your Project</Button>
+          </div>
+        </Section>
+      )}
+
       {categories.map((cat, ci) => (
         <Section key={cat.id} tone={ci % 2 === 0 ? "dark" : "deeper"} id={`cat-${cat.id}`} className="scroll-mt-24 noise">
           <div className="absolute inset-0 grid-bg opacity-40" aria-hidden />
@@ -144,7 +161,6 @@ export default function Services() {
               </div>
             </div>
 
-            {/* related */}
             <Reveal delay={0.1}>
               <div className="mt-10 pt-6 border-t border-white/[.07] flex flex-wrap items-center gap-3">
                 <span className="font-mono text-[0.62rem] uppercase tracking-[0.16em] text-ink-400">pairs well with:</span>
@@ -159,7 +175,6 @@ export default function Services() {
         </Section>
       ))}
 
-      {/* how a project runs across services */}
       <Section tone="paper">
         <div className="wrap">
           <SectionHead
