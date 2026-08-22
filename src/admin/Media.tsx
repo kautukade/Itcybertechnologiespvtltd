@@ -8,13 +8,27 @@ import { PageHead, AButton, AInput, ADrawer, AConfirm, FieldRow, toast, ErrorSta
 
 const db = supabase as unknown as SupabaseClient | null;
 
-const OK_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/svg+xml", "video/mp4"];
+const TYPE_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/avif": "avif",
+  "video/mp4": "mp4",
+};
+const OK_TYPES = Object.keys(TYPE_EXT);
 const MAX_BYTES = 10 * 1024 * 1024;
 
 const isImage = (t: string) => t.startsWith("image/");
 
+function fileExt(name: string): string {
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  return ext === "jpeg" ? "jpg" : ext;
+}
+
 function validateMedia(file: File): string | null {
-  if (!OK_TYPES.includes(file.type)) return "Allowed: JPG, PNG, WEBP, AVIF, SVG, MP4";
+  const expected = TYPE_EXT[file.type];
+  if (!expected) return "Allowed: JPG, PNG, WEBP, AVIF or MP4";
+  if (fileExt(file.name) !== expected) return "The file extension must match its media type";
   if (file.size > MAX_BYTES) return "Files must be 10 MB or smaller";
   if (file.size === 0) return "The selected file is empty";
   return null;
@@ -37,9 +51,9 @@ export default function Media() {
       return;
     }
     setUploading(true);
-    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "-");
-    const path = `media/${Date.now()}-${safeName}`;
-    const { error: upErr } = await db.storage.from("site-media").upload(path, file, { contentType: file.type });
+    const ext = TYPE_EXT[file.type];
+    const path = `media/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await db.storage.from("site-media").upload(path, file, { contentType: file.type, upsert: false });
     if (upErr) {
       toast(upErr.message, "err");
       setUploading(false);
@@ -56,7 +70,6 @@ export default function Media() {
       uploaded_by: profile?.id ?? null,
     });
     if (rowErr) {
-      /* Avoid orphaned public objects when the metadata insert fails. */
       await db.storage.from("site-media").remove([path]);
       setUploading(false);
       toast(rowErr.message, "err");
@@ -70,7 +83,7 @@ export default function Media() {
 
   const saveAlt = async () => {
     if (!db || !selected) return;
-    const { error: e } = await db.from("media_library").update({ alt_text: alt }).eq("id", selected.id);
+    const { error: e } = await db.from("media_library").update({ alt_text: alt.slice(0, 500) }).eq("id", selected.id);
     if (e) {
       toast(e.message, "err");
       return;
@@ -106,6 +119,11 @@ export default function Media() {
       toast(validation, "err");
       return;
     }
+    const currentExt = fileExt(selected.storage_path);
+    if (TYPE_EXT[file.type] !== currentExt) {
+      toast("Replacement must keep the same file type. Delete and re-upload to change formats.", "err");
+      return;
+    }
     setUploading(true);
     const { error: e } = await db.storage.from("site-media").upload(selected.storage_path, file, { contentType: file.type, upsert: true });
     if (e) {
@@ -134,7 +152,7 @@ export default function Media() {
     <div>
       <PageHead
         title="Media Library"
-        desc="Site images and video, stored in the public site-media bucket."
+        desc="Site images and video, stored in the public site-media bucket. Active SVG uploads are intentionally disabled."
         actions={
           <>
             <input ref={fileRef} type="file" accept={OK_TYPES.join(",")} className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
@@ -148,7 +166,7 @@ export default function Media() {
       ) : rows.length === 0 ? (
         <div className="border border-dashed border-slate-300 rounded-lg p-12 text-center bg-white">
           <p className="text-[0.9rem] font-medium text-slate-600">No media yet</p>
-          <p className="text-[0.8rem] text-slate-400 mt-1">Upload JPG, PNG, WEBP, AVIF, SVG or MP4 — up to 10 MB.</p>
+          <p className="text-[0.8rem] text-slate-400 mt-1">Upload JPG, PNG, WEBP, AVIF or MP4 — up to 10 MB.</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -203,11 +221,11 @@ export default function Media() {
             </div>
             <div className="mt-4">
               <FieldRow label="Alt text" hint="Describe the image for accessibility and SEO.">
-                <AInput value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="e.g. ITCYBER AI operations dashboard" />
+                <AInput maxLength={500} value={alt} onChange={(e) => setAlt(e.target.value)} placeholder="e.g. ITCYBER AI operations dashboard" />
               </FieldRow>
             </div>
             <div className="mt-4">
-              <FieldRow label="Replace file" hint="Keeps the same URL — useful for fixing an asset without updating references.">
+              <FieldRow label="Replace file" hint="Keeps the same URL and file format. Delete and re-upload to change formats.">
                 <input type="file" accept={OK_TYPES.join(",")} className="block text-[0.8rem] text-slate-500 file:mr-3 file:h-8 file:px-3 file:rounded-md file:border file:border-slate-300 file:bg-white file:text-slate-700 file:text-[0.78rem] file:cursor-pointer hover:file:bg-slate-100" onChange={(e) => { const f = e.target.files?.[0]; if (f) void replace(f); e.target.value = ""; }} />
               </FieldRow>
             </div>

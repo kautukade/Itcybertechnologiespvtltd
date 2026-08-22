@@ -3,6 +3,7 @@ import { site } from "../../data/site";
 import { serviceCategories, industries } from "../../data/content";
 import { useCollection } from "../../lib/cms";
 import { useSiteConfig, hasEmail, hasWhatsApp, getWhatsAppLink } from "../../lib/siteSettings";
+import { safeHttpUrl } from "../../lib/safety";
 import type { SocialLinkRow } from "../../types/db";
 import { Logo, IconMail, IconWhatsApp, IconPin, IconClock, IconArrowUpRight, IconArrow } from "../icons";
 
@@ -39,14 +40,15 @@ const cols: { title: string; links: { label: string; to: string }[] }[] = [
   },
 ];
 
-/** Social links: live from the `social_links` table when configured,
- *  otherwise the static defaults. Only renders links with a real href. */
 function FooterSocials() {
   const { data } = useCollection("social_links", [] as SocialLinkRow[]);
-  const live = (data ?? []).filter((s) => !!s.href);
-  const links = live.length
-    ? live.map((s) => ({ label: s.label, href: s.href }))
-    : site.socials;
+  const live = (data ?? [])
+    .map((s) => ({ label: s.label, href: safeHttpUrl(s.href) }))
+    .filter((s): s is { label: string; href: string } => Boolean(s.href));
+  const fallback = site.socials
+    .map((s) => ({ label: s.label, href: safeHttpUrl(s.href) }))
+    .filter((s): s is { label: string; href: string } => Boolean(s.href));
+  const links = live.length ? live : fallback;
   if (!links.length) return null;
   return (
     <div className="mt-6 flex gap-2 flex-wrap">
@@ -55,7 +57,7 @@ function FooterSocials() {
           key={s.label}
           href={s.href}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           className="h-9 px-3 inline-flex items-center gap-1.5 font-mono text-[0.66rem] uppercase tracking-[0.12em] hairline text-ink-200 hover:text-white hover:bg-white/[.06] transition-colors clip-corner"
         >
           {s.label} <IconArrowUpRight size={11} />
@@ -67,6 +69,7 @@ function FooterSocials() {
 
 export default function Footer() {
   const cfg = useSiteConfig();
+  const whatsapp = getWhatsAppLink(cfg, "Hi ITCYBER — I have a question about a project.");
   return (
     <footer className="relative bg-ink-950 text-ink-200 border-t border-white/[.07] overflow-hidden">
       <div className="absolute inset-0 grid-bg opacity-40" aria-hidden />
@@ -91,9 +94,9 @@ export default function Footer() {
                   </a>
                 </li>
               )}
-              {hasWhatsApp(cfg) && (
+              {hasWhatsApp(cfg) && whatsapp && (
                 <li>
-                  <a href={getWhatsAppLink(cfg, "Hi ITCYBER — I have a question about a project.") ?? undefined} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
+                  <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2.5 hover:text-white transition-colors group">
                     <IconWhatsApp size={15} className="text-signal" />
                     <span className="group-hover:underline underline-offset-4">WhatsApp ITCYBER</span>
                   </a>

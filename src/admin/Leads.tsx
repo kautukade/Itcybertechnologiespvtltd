@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { useAdminTable } from "../lib/cms";
 import { logActivity, useAuth } from "../lib/auth";
+import { csvCell, openExternal, safeHttpUrl } from "../lib/safety";
 import type { ContactLeadRow, ProfileRow, LeadNoteRow } from "../types/db";
 import { PageHead, ATable, AButton, AInput, ASelect, ADrawer, ABadge, FieldRow, Pagination, toast, ErrorState, AConfirm, type Column } from "./ui";
 
@@ -26,9 +27,13 @@ export default function Leads() {
   const [openLead, setOpenLead] = useState<ContactLeadRow | null>(null);
   const [users, setUsers] = useState<ProfileRow[]>([]);
 
-  useMemo(() => {
+  useEffect(() => {
     if (!db) return;
-    db.from("profiles").select("*").then(({ data }) => setUsers((data ?? []) as ProfileRow[]));
+    let cancelled = false;
+    void db.from("profiles").select("*").then(({ data }) => {
+      if (!cancelled) setUsers((data ?? []) as ProfileRow[]);
+    });
+    return () => { cancelled = true; };
   }, [loading]);
 
   const industries = useMemo(() => [...new Set(rows.map((r) => r.industry).filter(Boolean))] as string[], [rows]);
@@ -53,9 +58,9 @@ export default function Leads() {
   const exportCsv = () => {
     const head = ["full_name", "company", "email", "phone", "industry", "company_size", "automation_interest", "budget_range", "status", "source_page", "utm_source", "created_at"];
     const lines = filtered.map((l) =>
-      head.map((h) => `"${String((l as unknown as Record<string, unknown>)[h] ?? "").replace(/"/g, '""')}"`).join(",")
+      head.map((h) => csvCell((l as unknown as Record<string, unknown>)[h])).join(",")
     );
-    const blob = new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv" });
+    const blob = new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `itcyber-leads-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -89,11 +94,10 @@ export default function Leads() {
     <div>
       <PageHead
         title="Leads"
-        desc="Every public contact-form submission, stored by the submit-public edge function."
+        desc="Every validated public contact-form submission. CSV exports neutralise spreadsheet formulas from untrusted fields."
         actions={<AButton variant="ghost" onClick={exportCsv}>Export CSV</AButton>}
       />
 
-      {/* filters */}
       <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4 grid sm:grid-cols-2 lg:grid-cols-6 gap-2">
         <AInput placeholder="Search name, company, email…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} aria-label="Search leads" />
         <ASelect value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} aria-label="Filter by status">
@@ -128,7 +132,6 @@ function LeadDrawer({ lead, users, onClose, onChanged }: { lead: ContactLeadRow 
   const [confirmSpam, setConfirmSpam] = useState(false);
   const [notes, setNotes] = useState<LeadNoteRow[]>([]);
 
-  // Load the per-lead note history whenever a lead is opened
   useEffect(() => {
     let cancelled = false;
     if (!lead || !db) return;
@@ -137,9 +140,7 @@ function LeadDrawer({ lead, users, onClose, onChanged }: { lead: ContactLeadRow 
       const { data } = await db.from("lead_notes").select("*").eq("lead_id", lead.id).order("created_at", { ascending: false });
       if (!cancelled && data) setNotes(data as LeadNoteRow[]);
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!lead) return <ADrawer open={false} onClose={onClose} title=""><span /></ADrawer>;
@@ -159,6 +160,9 @@ function LeadDrawer({ lead, users, onClose, onChanged }: { lead: ContactLeadRow 
   };
 
   const waDigits = (lead.phone ?? "").replace(/[^\d]/g, "");
+  const website = lead.website
+    ? safeHttpUrl(/^https?:\/\//i.test(lead.website) ? lead.website : `https://${lead.website}`)
+    : null;
 
   return (
     <ADrawer open={!!lead} onClose={onClose} title={`${lead.full_name} — lead`} wide>
@@ -178,12 +182,11 @@ function LeadDrawer({ lead, users, onClose, onChanged }: { lead: ContactLeadRow 
         </FieldRow>
       </div>
 
-      {/* quick actions */}
       <div className="flex flex-wrap gap-2 mt-4">
-        {lead.phone && <AButton variant="ghost" size="sm" onClick={() => window.open(`tel:${lead.phone}`)}>Call {lead.phone}</AButton>}
-        <AButton variant="ghost" size="sm" onClick={() => window.open(`mailto:${lead.email}?subject=Re: your automation enquiry — ITCYBER`)}>Email</AButton>
-        {waDigits.length >= 10 && <AButton variant="ghost" size="sm" onClick={() => window.open(`https://wa.me/${waDigits}`, "_blank")}>WhatsApp</AButton>}
-        {lead.website && <AButton variant="ghost" size="sm" onClick={() => window.open(lead.website!.startsWith("http") ? lead.website! : `https://${lead.website}`, "_blank")}>Website ↗</AButton>}
+        {lead.phone && <AButton variant="ghost" size="sm" onClick={() => { window.location.href = `tel:${lead.phone}`; }}>Call {lead.phone}</AButton>}
+        <AButton variant="ghost" size="sm" onClick={() => { window.location.href = `mailto:${lead.email}?subject=${encodeURIComponent("Re: your automation enquiry — ITCYBER")}`; }}>Email</AButton>
+        {waDigits.length >= 10 && <AButton variant="ghost" size="sm" onClick={() => openExternal(`https://wa.me/${waDigits}`)}>WhatsApp</AButton>}
+        {website && <AButton variant="ghost" size="sm" onClick={() => openExternal(website)}>Website ↗</AButton>}
       </div>
 
       <dl className="mt-6 grid sm:grid-cols-2 gap-x-6 gap-y-3 text-[0.84rem]">
@@ -221,13 +224,12 @@ function LeadDrawer({ lead, users, onClose, onChanged }: { lead: ContactLeadRow 
         confirmLabel="Mark spam"
         loading={saving}
         onCancel={() => setConfirmSpam(false)}
-        onConfirm={() => { setConfirmSpam(false); patch({ status: "spam" }, "lead marked spam"); }}
+        onConfirm={() => { setConfirmSpam(false); void patch({ status: "spam" }, "lead marked spam"); }}
       />
     </ADrawer>
   );
 }
 
-/** Per-lead note history backed by the `lead_notes` table. */
 function NoteHistory({
   lead, notes, note, setNote, saving, onSaved,
 }: {
@@ -242,11 +244,11 @@ function NoteHistory({
   const [busy, setBusy] = useState(false);
 
   const addNote = async () => {
-    if (!db || !note.trim()) return;
+    if (!db || !note.trim() || !profile?.id) return;
     setBusy(true);
     const { data, error } = await db
       .from("lead_notes")
-      .insert({ lead_id: lead.id, admin_user_id: profile?.id ?? null, note: note.trim() })
+      .insert({ lead_id: lead.id, admin_user_id: profile.id, note: note.trim().slice(0, 5000) })
       .select()
       .single();
     setBusy(false);
@@ -262,10 +264,10 @@ function NoteHistory({
   return (
     <div className="mt-6">
       <FieldRow label="Add internal note">
-        <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} className="w-full px-3 py-2 rounded-md border border-slate-300 text-[0.84rem] focus:outline-2 focus:outline-blue-500" placeholder="Visible to the team only…" />
+        <textarea maxLength={5000} rows={3} value={note} onChange={(e) => setNote(e.target.value)} className="w-full px-3 py-2 rounded-md border border-slate-300 text-[0.84rem] focus:outline-2 focus:outline-blue-500" placeholder="Visible to the team only…" />
       </FieldRow>
       <div className="flex gap-2 mt-2">
-        <AButton size="sm" disabled={!note.trim() || saving || busy} loading={busy} onClick={addNote}>Save note</AButton>
+        <AButton size="sm" disabled={!note.trim() || saving || busy || !profile?.id} loading={busy} onClick={addNote}>Save note</AButton>
       </div>
       {notes.length > 0 && (
         <ul className="mt-4 space-y-2">

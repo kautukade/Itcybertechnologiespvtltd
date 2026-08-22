@@ -3,11 +3,8 @@
  *
  * Contract:
  *  - `configured` — Supabase env vars are present (a client could be created).
- *  - `source: "live"` — ONLY after the query actually succeeded. UI may show
- *    "live" badges only in this state.
- *  - `source: "fallback"` — Supabase absent OR the query failed; bundled
- *    static content renders so the site never blanks. `error` retains the
- *    diagnostic message.
+ *  - `source: "live"` — ONLY after the query actually succeeded.
+ *  - `source: "fallback"` — Supabase absent OR the query failed.
  */
 import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -15,6 +12,7 @@ import { supabase } from "./supabase";
 import type { Database, TableName } from "../types/db";
 import { site as staticSite, type SiteConfig } from "../data/site";
 import { getSiteConfig, setSiteConfig, useSiteConfig } from "./siteSettings";
+import { safeInternalPath } from "./safety";
 
 type Tables = Database["public"]["Tables"];
 type RowOf<T extends TableName> = Tables[T]["Row"];
@@ -49,13 +47,6 @@ const nonEmpty = (value: unknown): boolean => {
   return value !== null && value !== undefined;
 };
 
-/**
- * The original bundled Agent/Industry content is richer than the initial DB
- * seed. When a live row intentionally exists, keep its publication semantics
- * but fill only missing descriptive fields from the bundled record with the
- * same slug. This prevents a successful CMS query from turning a complete page
- * into empty cards while still allowing newly-created CMS records to work.
- */
 function enrichSparseLiveRows<T extends TableName>(table: T, rows: unknown[], fallback: RowOf<T>[]): RowOf<T>[] {
   if (table === "ai_agents") {
     const staticRows = fallback as unknown as Array<Record<string, unknown>>;
@@ -101,8 +92,6 @@ export function useCollection<T extends TableName>(
   table: T,
   fallback: RowOf<T>[]
 ): CollectionState<RowOf<T>> {
-  /* Careers are a truth-sensitive exception: bundled demo job records must
-     never be presented as real open positions when the backend is missing. */
   const safeFallback = (table === "jobs" ? [] : fallback) as RowOf<T>[];
 
   const [state, setState] = useState<{
@@ -131,11 +120,8 @@ export function useCollection<T extends TableName>(
         setState({ rows: liveRows, loading: false, error: null, source: "live" });
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-    // `fallback` is static module data at all current call sites; table is the
-    // only runtime identity that should trigger a reload.
+    return () => { cancelled = true; };
+    // fallback is static module data at all current call sites.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table]);
 
@@ -149,11 +135,6 @@ export function useCollection<T extends TableName>(
   };
 }
 
-/**
- * Site settings merged over static/env defaults (single row in DB).
- * Also pushes the merged config into the runtime store so every component
- * using `useSiteConfig()` re-renders with admin-updated contact details.
- */
 export function useSiteSettings(): SiteConfig & { live: boolean; loading: boolean; source: "live" | "fallback" } {
   const [loading, setLoading] = useState(false);
   const [live, setLive] = useState(false);
@@ -190,9 +171,7 @@ export function useSiteSettings(): SiteConfig & { live: boolean; loading: boolea
     })().catch(() => {
       if (!cancelled) setLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const merged = useSiteConfig();
@@ -226,11 +205,15 @@ export function useAnnouncement(): LiveAnnouncement & { dismissed: boolean; dism
       const now = new Date().toISOString();
       const startsOk = !data.starts_at || data.starts_at <= now;
       const endsOk = !data.ends_at || data.ends_at >= now;
-      if (startsOk && endsOk) setLive({ text: data.text, cta: data.cta_label ?? "Learn more", to: data.cta_to ?? "/" });
+      if (startsOk && endsOk) {
+        setLive({
+          text: String(data.text).slice(0, 500),
+          cta: String(data.cta_label ?? "Learn more").slice(0, 80),
+          to: safeInternalPath(data.cta_to, "/"),
+        });
+      }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const dismiss = () => {
@@ -242,11 +225,14 @@ export function useAnnouncement(): LiveAnnouncement & { dismissed: boolean; dism
     }
   };
 
-  const ann = live ?? { text: staticSite.announcement.text, cta: staticSite.announcement.cta, to: staticSite.announcement.to };
+  const ann = live ?? {
+    text: staticSite.announcement.text,
+    cta: staticSite.announcement.cta,
+    to: safeInternalPath(staticSite.announcement.to, "/"),
+  };
   return { ...ann, dismissed, dismiss };
 }
 
-/** Minimal admin table reader (all rows). */
 export function useAdminTable<T extends TableName>(table: T, orderBy = "created_at") {
   const [rows, setRows] = useState<RowOf<T>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -271,9 +257,7 @@ export function useAdminTable<T extends TableName>(table: T, orderBy = "created_
       }
       setLoading(false);
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [table, orderBy, version]);
 
   return { rows, loading, error, refresh: () => setVersion((v) => v + 1) };

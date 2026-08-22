@@ -1,48 +1,18 @@
 // ITCYBER — submit-career Edge Function
-// Validates a career application and stores it in `career_applications`
-// via the SERVICE ROLE. Fails closed if the service role key is not
-// configured — no anon fallback for inserts.
-//
-// `resume_path` must match the SAME contract the storage policy enforces:
-// pending/<uuid>.(pdf|doc|docx) inside the private `career-resumes` bucket.
-//
-// Deploy:  supabase functions deploy submit-career --no-verify-jwt
-// Secrets: SUPABASE_SERVICE_ROLE_KEY (set automatically), ALLOWED_ORIGINS
-//          (optional, comma-separated extra origins for previews)
+// Validates career applications, verifies live roles and cleans uploaded
+// resumes on rejected submissions. All database/storage writes use service role.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const DEFAULT_ORIGINS = [
-  "https://www.itcyber.in",
-  "https://itcyber.in",
-  "https://itcybertechnologiespvtltd.netlify.app",
-];
-const ALLOWED_ORIGINS = [
-  ...new Set([
-    ...DEFAULT_ORIGINS,
-    ...(Deno.env.get("ALLOWED_ORIGINS") ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
-  ]),
-];
-
-function corsFor(requestOrigin: string | null): Record<string, string> {
-  const origin = requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)
-    ? requestOrigin
-    : DEFAULT_ORIGINS[0];
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    Vary: "Origin",
-  };
-}
-const json = (body: unknown, status = 200, origin: string | null = null) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsFor(origin), "Content-Type": "application/json" },
-  });
+import {
+  consumePublicRateLimit,
+  corsHeaders,
+  isAllowedOrigin,
+  jsonResponse,
+  readJsonObject,
+  rejectDisallowedOrigin,
+  requestFingerprint,
+  RequestBodyError,
+} from "../_shared/security.ts";
 
 const ALLOWED: Record<string, number> = {
   job_id: 64, name: 120, email: 254, phone: 30, location: 120,
@@ -52,10 +22,8 @@ const ALLOWED: Record<string, number> = {
 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_RE = /^[+\d][\d\s\-()]{7,17}$/;
-const URL_RE = /^https?:\/\/[^\s]+$/i;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const RESUME_PATH_RE =
-  /^pending\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|doc|docx)$/;
+const RESUME_PATH_RE = /^pending\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|doc|docx)$/;
 
 function clean(value: unknown, max: number): string | null {
   if (value === null || value === undefined) return null;
@@ -63,50 +31,61 @@ function clean(value: unknown, max: number): string | null {
   return s.length === 0 ? null : s.slice(0, max);
 }
 
-Deno.serve(async (req) => {
-  const reqOrigin = req.headers.get("origin");
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsFor(reqOrigin) });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, reqOrigin);
-
-  const contentLength = Number(req.headers.get("content-length") ?? 0);
-  if (Number.isFinite(contentLength) && contentLength > 32_768) {
-    return json({ error: "Request is too large" }, 413, reqOrigin);
+function validHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
   }
+}
+
+Deno.serve(async (req) => {
+  const origin = req.headers.get("origin");
+
+  if (req.method === "OPTIONS") {
+    if (!isAllowedOrigin(origin)) return jsonResponse({ error: "Origin not allowed" }, 403, origin);
+    return new Response(null, { status: 204, headers: corsHeaders(origin) });
+  }
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405, origin);
+
+  const originError = rejectDisallowedOrigin(req);
+  if (originError) return originError;
 
   let raw: Record<string, unknown>;
   try {
-    raw = await req.json();
-  } catch {
-    return json({ error: "Invalid JSON body" }, 400, reqOrigin);
+    raw = await readJsonObject(req, 32_768);
+  } catch (error) {
+    if (error instanceof RequestBodyError) return jsonResponse({ error: error.message }, error.status, origin);
+    return jsonResponse({ error: "Invalid request" }, 400, origin);
   }
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return json({ error: "Invalid payload" }, 400, reqOrigin);
 
-  if (raw.referral_link) return json({ ok: true }, 200, reqOrigin);
+  if (raw.referral_link) return jsonResponse({ ok: true }, 200, origin);
   const elapsed = Number(raw.elapsed_ms);
-  if (Number.isFinite(elapsed) && elapsed < 2500) return json({ error: "Submission rejected" }, 429, reqOrigin);
+  if (Number.isFinite(elapsed) && elapsed < 2500) return jsonResponse({ error: "Submission rejected" }, 429, origin);
 
   const unknown = Object.keys(raw).filter((k) => !(k in ALLOWED) && !["elapsed_ms", "referral_link"].includes(k));
-  if (unknown.length) return json({ error: `Unexpected fields: ${unknown.join(", ")}` }, 400, reqOrigin);
+  if (unknown.length) return jsonResponse({ error: `Unexpected fields: ${unknown.join(", ")}` }, 400, origin);
 
   const data: Record<string, string | null> = {};
   for (const [key, max] of Object.entries(ALLOWED)) data[key] = clean(raw[key], max);
 
-  const email = data.email;
-  if (!email || !EMAIL_RE.test(email)) return json({ error: "A valid email is required" }, 422, reqOrigin);
-  if (!data.name) return json({ error: "Full name is required" }, 422, reqOrigin);
-  if (data.phone && !PHONE_RE.test(data.phone)) return json({ error: "Phone number looks invalid" }, 422, reqOrigin);
-  if (data.linkedin_url && !URL_RE.test(data.linkedin_url)) return json({ error: "LinkedIn URL looks invalid" }, 422, reqOrigin);
-  if (data.portfolio_url && !URL_RE.test(data.portfolio_url)) return json({ error: "Portfolio URL looks invalid" }, 422, reqOrigin);
-  if (data.resume_path && !RESUME_PATH_RE.test(data.resume_path)) return json({ error: "Invalid resume reference" }, 422, reqOrigin);
-  if (data.job_id && !UUID_RE.test(data.job_id)) return json({ error: "Invalid job reference" }, 422, reqOrigin);
+  const email = data.email?.toLowerCase() ?? null;
+  if (!email || !EMAIL_RE.test(email)) return jsonResponse({ error: "A valid email is required" }, 422, origin);
+  if (!data.name) return jsonResponse({ error: "Full name is required" }, 422, origin);
+  if (data.phone && !PHONE_RE.test(data.phone)) return jsonResponse({ error: "Phone number looks invalid" }, 422, origin);
+  if (data.linkedin_url && !validHttpUrl(data.linkedin_url)) return jsonResponse({ error: "LinkedIn URL looks invalid" }, 422, origin);
+  if (data.portfolio_url && !validHttpUrl(data.portfolio_url)) return jsonResponse({ error: "Portfolio URL looks invalid" }, 422, origin);
+  if (data.resume_path && !RESUME_PATH_RE.test(data.resume_path)) return jsonResponse({ error: "Invalid resume reference" }, 422, origin);
+  if (data.job_id && !UUID_RE.test(data.job_id)) return jsonResponse({ error: "Invalid job reference" }, 422, origin);
 
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const url = Deno.env.get("SUPABASE_URL");
   if (!serviceKey || !url) {
-    console.error("submit-career: SUPABASE_SERVICE_ROLE_KEY is not configured");
-    return json({ error: "Submission service is not configured. Please contact us directly." }, 503, reqOrigin);
+    console.error("submit-career: server credentials are not configured");
+    return jsonResponse({ error: "Submission service is not configured. Please contact us directly." }, 503, origin);
   }
-  const admin = createClient(url, serviceKey);
+  const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
   const cleanupResume = async () => {
     if (!data.resume_path) return;
@@ -114,9 +93,17 @@ Deno.serve(async (req) => {
     if (error) console.error("career resume cleanup failed", error.message);
   };
 
-  /* A syntactically valid UUID is not enough: never accept applications for a
-     draft, unpublished or explicitly closed role. General applications with no
-     job_id remain supported. */
+  const fingerprint = await requestFingerprint(req);
+  const abuse = await consumePublicRateLimit(admin, "career", fingerprint, 20, 3600);
+  if (abuse === "blocked") {
+    await cleanupResume();
+    return jsonResponse({ error: "Too many submissions — please try again later." }, 429, origin);
+  }
+  if (abuse === "error") {
+    await cleanupResume();
+    return jsonResponse({ error: "We couldn't submit your application. Please try again." }, 503, origin);
+  }
+
   if (data.job_id) {
     const { data: job, error: jobError } = await admin
       .from("jobs")
@@ -127,11 +114,11 @@ Deno.serve(async (req) => {
     if (jobError) {
       console.error("career job lookup failed", jobError.message);
       await cleanupResume();
-      return json({ error: "We couldn't verify this role. Please try again." }, 500, reqOrigin);
+      return jsonResponse({ error: "We couldn't verify this role. Please try again." }, 500, origin);
     }
     if (!job || !job.published || !job.applications_open) {
       await cleanupResume();
-      return json({ error: "This role is no longer accepting applications." }, 422, reqOrigin);
+      return jsonResponse({ error: "This role is no longer accepting applications." }, 422, origin);
     }
   }
 
@@ -144,11 +131,11 @@ Deno.serve(async (req) => {
   if (rateError) {
     console.error("career rate-limit lookup failed", rateError.message);
     await cleanupResume();
-    return json({ error: "We couldn't submit your application. Please try again." }, 500, reqOrigin);
+    return jsonResponse({ error: "We couldn't submit your application. Please try again." }, 500, origin);
   }
   if ((count ?? 0) >= 5) {
     await cleanupResume();
-    return json({ error: "Too many submissions — please try again later." }, 429, reqOrigin);
+    return jsonResponse({ error: "Too many submissions — please try again later." }, 429, origin);
   }
 
   const { error } = await admin.from("career_applications").insert({
@@ -161,7 +148,7 @@ Deno.serve(async (req) => {
   if (error) {
     console.error("career insert failed", error.message);
     await cleanupResume();
-    return json({ error: "We couldn't submit your application. Please try again." }, 500, reqOrigin);
+    return jsonResponse({ error: "We couldn't submit your application. Please try again." }, 500, origin);
   }
-  return json({ ok: true }, 200, reqOrigin);
+  return jsonResponse({ ok: true }, 200, origin);
 });

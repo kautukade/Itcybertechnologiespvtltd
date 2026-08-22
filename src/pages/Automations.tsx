@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Reveal, Scramble } from "../lib/motion";
 import { cn } from "../lib/utils";
 import { automationAnatomy, automationExample, serviceCategories } from "../data/content";
@@ -77,8 +77,9 @@ export default function Automations() {
   const cats = useMemo(() => ["All", ...Array.from(new Set(library.map((l) => l.category)))], [library]);
   const filtered = library.filter((l) => cat === "All" || l.category === cat);
 
-  /* If an admin removes the currently-selected category, recover gracefully. */
-  if (!cats.includes(cat)) setCat("All");
+  useEffect(() => {
+    if (!cats.includes(cat)) setCat("All");
+  }, [cat, cats]);
 
   return (
     <>
