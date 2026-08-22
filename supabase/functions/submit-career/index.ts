@@ -68,13 +68,18 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsFor(reqOrigin) });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, reqOrigin);
 
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > 32_768) {
+    return json({ error: "Request is too large" }, 413, reqOrigin);
+  }
+
   let raw: Record<string, unknown>;
   try {
     raw = await req.json();
   } catch {
     return json({ error: "Invalid JSON body" }, 400, reqOrigin);
   }
-  if (typeof raw !== "object" || raw === null) return json({ error: "Invalid payload" }, 400, reqOrigin);
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return json({ error: "Invalid payload" }, 400, reqOrigin);
 
   if (raw.referral_link) return json({ ok: true }, 200, reqOrigin);
   const elapsed = Number(raw.elapsed_ms);
