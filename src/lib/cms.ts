@@ -62,11 +62,11 @@ function enrichSparseLiveRows<T extends TableName>(table: T, rows: unknown[], fa
     return rows.map((raw) => {
       const row = { ...(raw as Record<string, unknown>) };
       const fb = staticRows.find((x) => x.id === row.slug || x.slug === row.slug);
-      if (!fb) return row as RowOf<T>;
+      if (!fb) return row as unknown as RowOf<T>;
       for (const key of ["inputs", "actions", "systems", "outputs", "handoff"] as const) {
         if (!nonEmpty(row[key]) && nonEmpty(fb[key])) row[key] = fb[key];
       }
-      return row as RowOf<T>;
+      return row as unknown as RowOf<T>;
     });
   }
 
@@ -75,7 +75,7 @@ function enrichSparseLiveRows<T extends TableName>(table: T, rows: unknown[], fa
     return rows.map((raw) => {
       const row = { ...(raw as Record<string, unknown>) };
       const fb = staticRows.find((x) => x.slug === row.slug);
-      if (!fb) return row as RowOf<T>;
+      if (!fb) return row as unknown as RowOf<T>;
 
       if (!nonEmpty(row.short_description) && nonEmpty(fb.short)) row.short_description = fb.short;
       const mappings: Array<[string, string]> = [
@@ -90,7 +90,7 @@ function enrichSparseLiveRows<T extends TableName>(table: T, rows: unknown[], fa
       for (const [dbKey, staticKey] of mappings) {
         if (!nonEmpty(row[dbKey]) && nonEmpty(fb[staticKey])) row[dbKey] = fb[staticKey];
       }
-      return row as RowOf<T>;
+      return row as unknown as RowOf<T>;
     });
   }
 
