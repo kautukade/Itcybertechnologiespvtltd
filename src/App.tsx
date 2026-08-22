@@ -21,6 +21,7 @@ const Work = React.lazy(() => import("./pages/Work"));
 const About = React.lazy(() => import("./pages/About"));
 const Careers = React.lazy(() => import("./pages/Careers"));
 const Contact = React.lazy(() => import("./pages/Contact"));
+const Resources = React.lazy(() => import("./pages/Resources"));
 const Legal = React.lazy(() => import("./pages/Legal"));
 const NotFound = React.lazy(() => import("./pages/NotFound"));
 const Industry = React.lazy(() => import("./pages/Solutions").then((m) => ({ default: m.IndustryPage })));
@@ -104,6 +105,7 @@ const META: Record<string, [string, string]> = {
   "/about": ["About ITCYBER — Practical AI Systems for Real Businesses", "ITCYBER Technologies Pvt Ltd: business-first AI engineering. Our story, beliefs, mission and delivery method."],
   "/careers": ["Careers at ITCYBER — AI Automation & Engineering Roles", "Join ITCYBER: open roles in AI automation engineering, full-stack development, solutions architecture and business development."],
   "/contact": ["Contact ITCYBER — Discuss Your Website, App, Software or AI Project", "Tell us what you want to build. Free consultation and a 2-minute project assessment for websites, web apps, custom software, mobile apps, AI systems and automation."],
+  "/resources": ["Resources — AI, Automation & Software Field Notes | ITCYBER", "Practical field notes on AI agents, automation, software, websites and business systems."],
   "/privacy-policy": ["Privacy Policy | ITCYBER", "How ITCYBER Technologies collects, uses and protects your data."],
   "/terms-of-service": ["Terms of Service | ITCYBER", "Terms governing use of itcyber.in and ITCYBER services."],
   "/cookie-policy": ["Cookie Policy | ITCYBER", "The minimal, honest cookies used on itcyber.in and how to control them."],
@@ -116,6 +118,8 @@ function MetaBridge() {
       applyPageMeta({ title: "ITCYBER Admin", description: "Restricted area", path: pathname, robots: "noindex, nofollow" });
       return;
     }
+    const pageOwnsMeta = pathname === "/" || pathname === "/web-development" || pathname === "/app-development" || pathname === "/careers" || pathname === "/contact" || pathname === "/resources" || pathname.startsWith("/resources/");
+    if (pageOwnsMeta) return;
     let entry = META[pathname];
     if (!entry && pathname.startsWith("/solutions/")) {
       const slug = pathname.split("/")[2] ?? "";
@@ -158,6 +162,8 @@ function PageShell() {
             <Route path="/about" element={<About />} />
             <Route path="/careers" element={<Careers />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/resources" element={<Resources />} />
+            <Route path="/resources/:slug" element={<Resources />} />
             <Route path="/privacy-policy" element={<Legal />} />
             <Route path="/terms-of-service" element={<Legal />} />
             <Route path="/cookie-policy" element={<Legal />} />

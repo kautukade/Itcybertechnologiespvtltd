@@ -54,14 +54,47 @@ export default function Navbar() {
     };
   }, [mobileOpen]);
 
-  /* keyboard: Escape closes menus; focus moves into the mobile sheet */
+  /* keyboard: trap focus inside the mobile sheet, Escape closes, focus returns to trigger */
   const closeRef = useRef<HTMLButtonElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileDialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (mobileDialogRef.current) mobileDialogRef.current.inert = !mobileOpen;
+  }, [mobileOpen]);
+
   useEffect(() => {
     if (!mobileOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileOpen(false);
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : menuButtonRef.current;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMobileOpen(false);
+        return;
+      }
+      if (e.key !== "Tab" || !mobileDialogRef.current) return;
+      const focusable = Array.from(
+        mobileDialogRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => el.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     document.addEventListener("keydown", onKey);
     closeRef.current?.focus();
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      queueMicrotask(() => previouslyFocused?.focus());
+    };
   }, [mobileOpen]);
 
   useEffect(() => {
@@ -88,7 +121,6 @@ export default function Navbar() {
 
   return (
     <>
-      {/* Announcement strip */}
       {ann.show && !announceHidden && (
         <div className="relative z-50 bg-ink-800 border-b border-white/[.07]">
           <div className="wrap h-9 flex items-center justify-center gap-3 text-[0.78rem]">
@@ -115,7 +147,6 @@ export default function Navbar() {
             <Logo />
           </Link>
 
-          {/* Desktop nav */}
           <nav aria-label="Primary" className="hidden lg:flex items-center gap-0.5">
             {nav.primary.map((item) =>
               "mega" in item && item.mega ? (
@@ -148,7 +179,6 @@ export default function Navbar() {
                 </NavLink>
               )
             )}
-            {/* Resources */}
             <div className="relative" onMouseEnter={() => enter("resources")} onMouseLeave={leave}>
               <button className={cn(linkCls({ isActive: false }), "cursor-pointer", openMega === "resources" && "text-white")} aria-expanded={openMega === "resources"} onFocus={() => enter("resources")}>
                 Resources
@@ -181,8 +211,8 @@ export default function Navbar() {
             </Button>
           </div>
 
-          {/* Mobile toggle */}
           <button
+            ref={menuButtonRef}
             className="lg:hidden w-11 h-11 inline-flex items-center justify-center text-white hairline clip-corner hover:bg-white/[.06] transition-colors"
             onClick={() => setMobileOpen(true)}
             aria-label="Open navigation menu"
@@ -193,8 +223,9 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* ------------ Mobile full-screen navigation ------------ */}
       <div
+        ref={mobileDialogRef}
+        aria-hidden={!mobileOpen}
         className={cn(
           "fixed inset-0 z-50 lg:hidden flex flex-col bg-ink-950 transition-all duration-500 ease-[cubic-bezier(.16,1,.3,1)]",
           mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
@@ -278,12 +309,8 @@ export default function Navbar() {
   );
 }
 
-/* ------------------------------ Mega menu panel ------------------------------ */
-
 function MegaPanel({ kind }: { kind: string }) {
   if (kind === "services") {
-    /* Five capabilities: 3-up on row one, 2-up + assessment CTA on row two
-       (grid-cols-6 with col-span-2 cells) — never a squeezed 5-column strip. */
     return (
       <div className="w-[52rem] bg-ink-850/95 backdrop-blur-xl hairline clip-corner shadow-[0_30px_80px_-20px_rgba(0,0,0,.8)] p-2 grid grid-cols-6">
         {serviceCategories.map((s) => (
@@ -350,7 +377,6 @@ function MegaPanel({ kind }: { kind: string }) {
     );
   }
 
-  /* company */
   const links = [
     { label: "About", to: "/about", blurb: "Practical AI for real businesses" },
     { label: "Work", to: "/work", blurb: "How engagements are architected" },
