@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Reveal, Scramble } from "../lib/motion";
 import { cn } from "../lib/utils";
@@ -31,8 +31,20 @@ export default function Contact() {
   });
 
   const cfg = useSiteConfig();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const [tab, setTab] = useState<"form" | "assessment">(params.get("mode") === "assessment" ? "assessment" : "form");
+
+  useEffect(() => {
+    setTab(params.get("mode") === "assessment" ? "assessment" : "form");
+  }, [params]);
+
+  const selectTab = (nextTab: "form" | "assessment") => {
+    setTab(nextTab);
+    const next = new URLSearchParams(params);
+    if (nextTab === "assessment") next.set("mode", "assessment");
+    else next.delete("mode");
+    setParams(next, { replace: true });
+  };
 
   return (
     <>
@@ -67,7 +79,7 @@ export default function Contact() {
                   key={t.id}
                   role="tab"
                   aria-selected={tab === t.id}
-                  onClick={() => setTab(t.id)}
+                  onClick={() => selectTab(t.id)}
                   className={cn(
                     "font-display font-semibold text-[0.92rem] px-5 h-10 clip-corner transition-all duration-300",
                     tab === t.id ? "bg-brand-500 text-white" : "text-ink-200 hover:text-white"
@@ -83,7 +95,6 @@ export default function Contact() {
 
       <Section tone="paper">
         <div className="wrap grid lg:grid-cols-[1fr_1.7fr] gap-12 items-start">
-          {/* channels */}
           <div className="lg:sticky lg:top-28 space-y-5">
             <SectionHead
               tone="paper"
@@ -142,8 +153,6 @@ export default function Contact() {
   );
 }
 
-/* ─────────────────────────── project brief form ─────────────────────────── */
-
 const EMPTY_BRIEF = {
   full_name: "", company: "", phone: "", email: "", website: "", industry: "", company_size: "",
   automation_interest: "", existing_tools: "", budget_range: "", preferred_contact: "Email", message: "",
@@ -164,7 +173,7 @@ function ProjectBrief() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.referral_link) return; // honeypot
+    if (form.referral_link) return;
     const errs: Record<string, string> = {};
     if (!form.full_name.trim()) errs.full_name = "Please enter your name";
     if (!isEmail(form.email)) errs.email = "Enter a valid work email";
@@ -236,7 +245,6 @@ function ProjectBrief() {
             {["Email", "Phone", "WhatsApp", "Video call"].map((s) => <option key={s} value={s}>{s}</option>)}
           </Select>
         </Field>
-        {/* honeypot — hidden from humans, bait for bots */}
         <div className="sr-only" aria-hidden="true">
           <label htmlFor="b-referral">Leave this empty</label>
           <TextInput id="b-referral" tabIndex={-1} autoComplete="off" value={form.referral_link} onChange={set("referral_link")} />
@@ -258,8 +266,6 @@ function ProjectBrief() {
     </Reveal>
   );
 }
-
-/* ─────────────────────── multi-step automation assessment ─────────────────────── */
 
 const STEPS = ["What you need", "Industry", "Main problem", "Current tools", "Budget & timeline", "Contact details"];
 
@@ -332,7 +338,6 @@ function AssessmentWizard() {
   return (
     <Reveal delay={0.1}>
       <div className="bg-white hairline-light clip-corner p-6 sm:p-8">
-        {/* progress */}
         <div className="flex items-center justify-between gap-4 mb-2">
           <p className="font-mono text-[0.64rem] uppercase tracking-[0.16em] text-ink-400">
             Step {step + 1} / {STEPS.length} — {STEPS[step]}
@@ -445,8 +450,6 @@ function AssessmentWizard() {
   );
 }
 
-/* ─────────────────────────── shared success card ─────────────────────────── */
-
 function SuccessWhatsApp() {
   const cfg = useSiteConfig();
   const link = getWhatsAppLink(cfg, "Hi ITCYBER — I just submitted my enquiry on the website.");
@@ -464,8 +467,7 @@ function SuccessCard({ name, email, what }: { name: string; email: string; what:
         Your {what} has been submitted.
       </h2>
       <p className="text-ink-500 mt-3 leading-relaxed max-w-md mx-auto">
-        Thanks, {name.split(" ")[0]} — it's safely stored and a real person reviews every submission.
-        Your details are safely stored and a real engineer reviews every submission. We'll reply to <strong className="text-ink-800">{email}</strong> as soon as it's read.
+        Thanks, {name.split(" ")[0]} — your details are stored securely and reviewed by a real engineer. We'll reply to <strong className="text-ink-800">{email}</strong> as soon as it's read.
       </p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
         <Button to="/" variant="light">Back to Home</Button>
@@ -474,8 +476,6 @@ function SuccessCard({ name, email, what }: { name: string; email: string; what:
     </div>
   );
 }
-
-/* ─────────────────────────────── FAQ ─────────────────────────────── */
 
 const FAQS = [
   { q: "How quickly can a first automation go live?", a: "Most first workflows — lead response, CRM sync, WhatsApp follow-up — go live within two to four weeks, depending on how many systems we're connecting." },
