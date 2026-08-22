@@ -29,6 +29,9 @@ jobs:
       - name: Repository security regression checks
         run: node scripts/security-check.mjs
 
+      - name: Validate Netlify sitemap function
+        run: node --check netlify/functions/sitemap.mjs
+
       - name: Typecheck
         run: npm run typecheck
 
