@@ -1,113 +1,302 @@
 -- ═══════════════════════════════════════════════════════════════════════
--- 0003 · SECURITY HARDENING
+-- ITCYBER TECHNOLOGIES PVT LTD
+-- Migration 0003 — SECURITY HARDENING
 --
--- 1. Closes the profiles privilege-escalation vector. RLS is row-level,
---    so column protection is enforced with a BEFORE UPDATE trigger:
---      · nobody (any role) may change id / created_at / email
---      · only super_admin may change role / active
---      · all other roles may only change full_name / avatar_url
---    updated_at is excluded from checks (maintained by set_updated_at).
---
--- 2. career-resumes bucket: server-side 5 MB limit + MIME allow-list
---    (storage.buckets.file_size_limit / allowed_mime_types), and a strict
---    upload path policy: pending/<uuid>.(pdf|doc|docx) — blocks path
---    traversal, arbitrary names, overwrite abuse (INSERT-only policy).
---
--- 3. SECURITY DEFINER audit: current_app_role() / is_active_profile()
---    already run with `set search_path = public`, STABLE, and read only
---    profiles.id/role/active. Grants are tightened below so they can be
---    executed only by database roles the app actually uses.
+-- 1. Protect profile privilege fields.
+-- 2. Harden career resume storage.
+-- 3. Tighten SECURITY DEFINER permissions.
 -- ═══════════════════════════════════════════════════════════════════════
 
--- ───────────────────────── profiles column guard ─────────────────────────
+
+-- ═════════════════════════ PROFILE FIELD GUARD ═════════════════════════
+
 create or replace function public.protect_profile_fields()
-returns trigger language plpgsql security definer set search_path = public as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+
+  caller_uid uuid := auth.uid();
+
+  caller_role text := public.current_app_role();
+
+  -- Trusted direct database session.
+  -- Needed so the first super_admin can be bootstrapped safely
+  -- from Supabase SQL Editor.
+  direct_database_admin boolean :=
+    caller_uid is null
+    and session_user in (
+      'postgres',
+      'supabase_admin'
+    );
+
 begin
-  -- identity fields are immutable for everyone, including super_admin
+
+  -- ID is immutable.
+
   if new.id is distinct from old.id then
-    raise exception 'profiles.id is immutable' using errcode = '42501';
-  end if;
-  if new.created_at is distinct from old.created_at then
-    raise exception 'profiles.created_at is immutable' using errcode = '42501';
-  end if;
-  if new.email is distinct from old.email then
-    raise exception 'profiles.email cannot be changed here (auth.users is the source of truth)' using errcode = '42501';
+    raise exception
+      'profiles.id is immutable'
+      using errcode = '42501';
   end if;
 
-  -- only super_admin may alter role / active
-  if public.current_app_role() <> 'super_admin' then
-    if new.role is distinct from old.role then
-      raise exception 'Only a super admin can change a profile role' using errcode = '42501';
-    end if;
-    if new.active is distinct from old.active then
-      raise exception 'Only a super admin can activate or deactivate a profile' using errcode = '42501';
-    end if;
+
+  -- created_at is immutable.
+
+  if new.created_at is distinct from old.created_at then
+    raise exception
+      'profiles.created_at is immutable'
+      using errcode = '42501';
   end if;
+
+
+  -- Email identity comes from auth.users.
+
+  if new.email is distinct from old.email then
+    raise exception
+      'profiles.email cannot be changed here (auth.users is the source of truth)'
+      using errcode = '42501';
+  end if;
+
+
+  -- Only:
+  --
+  -- 1. existing super_admin
+  -- 2. trusted direct database admin
+  --
+  -- may modify role / active.
+
+  if not direct_database_admin
+     and caller_role <> 'super_admin'
+  then
+
+    if new.role is distinct from old.role then
+      raise exception
+        'Only a super admin can change a profile role'
+        using errcode = '42501';
+    end if;
+
+
+    if new.active is distinct from old.active then
+      raise exception
+        'Only a super admin can activate or deactivate a profile'
+        using errcode = '42501';
+    end if;
+
+  end if;
+
 
   return new;
-end $$;
 
--- Fire BEFORE the updated_at trigger (alphabetical order guarantees
--- profiles_updated runs first, then this guard sees final values).
-drop trigger if exists protect_profile_fields on public.profiles;
+end
+$$;
+
+
+-- ───────────────────────── PROFILE GUARD TRIGGER ─────────────────────────
+
+drop trigger if exists protect_profile_fields
+on public.profiles;
+
+
 create trigger protect_profile_fields
   before update on public.profiles
-  for each row execute function public.protect_profile_fields();
+  for each row
+  execute function public.protect_profile_fields();
 
--- Self-update policy keeps row scoping; column protection lives in the trigger.
-drop policy if exists "profiles update self" on public.profiles;
-create policy "profiles update self" on public.profiles for update
-  using (id = auth.uid())
-  with check (id = auth.uid());
 
--- ───────────── SECURITY DEFINER grant tightening ─────────────
-revoke execute on function public.current_app_role() from public;
-revoke execute on function public.is_active_profile() from public;
-grant execute on function public.current_app_role() to anon, authenticated, service_role;
-grant execute on function public.is_active_profile() to anon, authenticated, service_role;
-revoke execute on function public.protect_profile_fields() from public;
+-- ───────────────────────── SELF UPDATE POLICY ─────────────────────────
 
--- ─────────────────── career-resumes bucket hardening ───────────────────
--- Server-side limits (not just browser validation):
---   · max 5 MB per object
---   · MIME restricted to PDF / DOC / DOCX
+drop policy if exists "profiles update self"
+on public.profiles;
+
+
+create policy "profiles update self"
+on public.profiles
+for update
+using (
+  id = auth.uid()
+)
+with check (
+  id = auth.uid()
+);
+
+
+-- ═════════════════════════ SECURITY DEFINER PERMISSIONS ═════════════════════════
+
+revoke execute
+on function public.current_app_role()
+from public;
+
+
+revoke execute
+on function public.is_active_profile()
+from public;
+
+
+grant execute
+on function public.current_app_role()
+to anon, authenticated, service_role;
+
+
+grant execute
+on function public.is_active_profile()
+to anon, authenticated, service_role;
+
+
+revoke execute
+on function public.protect_profile_fields()
+from public;
+
+
+-- ═════════════════════════ CAREER RESUME BUCKET ═════════════════════════
+
+-- Ensure bucket exists even if database was partially initialized.
+
+insert into storage.buckets (
+  id,
+  name,
+  public
+)
+values (
+  'career-resumes',
+  'career-resumes',
+  false
+)
+on conflict (id)
+do nothing;
+
+
+-- Server-side restrictions:
+--
+-- max 5 MB
+-- PDF / DOC / DOCX only
+
 update storage.buckets
-   set file_size_limit = 5242880,
-       allowed_mime_types = array[
-         'application/pdf',
-         'application/msword',
-         'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-       ]
- where id = 'career-resumes';
 
--- Strict upload path: pending/<uuid>.(pdf|doc|docx) only.
--- Blocks path traversal (no extra slashes, no '..'), arbitrary filenames,
--- and overwrites (policy is INSERT-only; anon has no UPDATE policy).
-drop policy if exists "resumes anon upload" on storage.objects;
-create policy "resumes anon upload" on storage.objects for insert
-  with check (
-    bucket_id = 'career-resumes'
-    and name ~ '^pending/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|doc|docx)$'
-  );
+set
+  public = false,
 
--- Belt-and-braces: anonymous users can never update or delete in this bucket.
-drop policy if exists "resumes anon update" on storage.objects;
-drop policy if exists "resumes anon delete" on storage.objects;
+  file_size_limit = 5242880,
 
--- ═══════════════════════════════════════════════════════════════════════
--- VERIFICATION (run as the relevant role in the SQL editor):
+  allowed_mime_types = array[
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ]
+
+where id = 'career-resumes';
+
+
+-- ═════════════════════════ RESUME UPLOAD POLICY ═════════════════════════
+
+drop policy if exists "resumes anon upload"
+on storage.objects;
+
+
+create policy "resumes anon upload"
+on storage.objects
+for insert
+with check (
+
+  bucket_id = 'career-resumes'
+
+  and name ~
+    '^pending/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|doc|docx)$'
+
+);
+
+
+-- Anonymous users must never update or delete uploaded resumes.
+
+drop policy if exists "resumes anon update"
+on storage.objects;
+
+
+drop policy if exists "resumes anon delete"
+on storage.objects;
+
+
+-- Staff read policy
+
+drop policy if exists "resumes staff read"
+on storage.objects;
+
+
+create policy "resumes staff read"
+on storage.objects
+for select
+using (
+
+  bucket_id = 'career-resumes'
+
+  and public.is_active_profile()
+
+  and public.current_app_role() in (
+    'hr',
+    'admin',
+    'super_admin'
+  )
+
+);
+
+
+-- Staff delete policy
+
+drop policy if exists "resumes staff delete"
+on storage.objects;
+
+
+create policy "resumes staff delete"
+on storage.objects
+for delete
+using (
+
+  bucket_id = 'career-resumes'
+
+  and public.is_active_profile()
+
+  and public.current_app_role() in (
+    'hr',
+    'admin',
+    'super_admin'
+  )
+
+);
+
+
+-- ═════════════════════════ VERIFICATION NOTES ═════════════════════════
 --
---   -- as an authenticated NON-super_admin (e.g. editor), on their own row:
---   update public.profiles set active = true where id = auth.uid();        -- MUST FAIL
---   update public.profiles set role = 'super_admin' where id = auth.uid(); -- MUST FAIL
---   update public.profiles set email = 'x@x.io' where id = auth.uid();     -- MUST FAIL
---   update public.profiles set full_name = 'New Name' where id = auth.uid(); -- allowed
+-- Authenticated normal user:
 --
---   -- as super_admin:
---   update public.profiles set role = 'sales', active = true
---    where email = 'someone@itcyber.in';                                   -- allowed
+-- update public.profiles
+-- set active = true
+-- where id = auth.uid();
 --
---   -- storage: a 6 MB PDF upload to career-resumes MUST be rejected by
---   -- file_size_limit; a .png upload MUST be rejected by allowed_mime_types;
---   -- an upload to 'resumes/evil.pdf' MUST be rejected by the path policy.
--- ═══════════════════════════════════════════════════════════════════════
+-- MUST FAIL
+--
+--
+-- update public.profiles
+-- set role = 'super_admin'
+-- where id = auth.uid();
+--
+-- MUST FAIL
+--
+--
+-- update public.profiles
+-- set full_name = 'New Name'
+-- where id = auth.uid();
+--
+-- ALLOWED
+--
+--
+-- First admin may be bootstrapped from SQL Editor:
+--
+-- update public.profiles
+-- set
+--   role = 'super_admin',
+--   active = true
+-- where email = 'your-real-admin-email@example.com';
+--
+-- ═════════════════════════ END 0003 ═════════════════════════
