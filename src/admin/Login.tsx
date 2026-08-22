@@ -51,9 +51,11 @@ export default function AdminLogin() {
           {!supabaseConfigured ? (
             <div className="mt-5 border border-amber-200 bg-amber-50 rounded-md p-4">
               <p className="text-[0.82rem] text-amber-800 font-medium">Supabase is not configured</p>
-              <p className="text-[0.76rem] text-amber-700 mt-1">
-                Add <code className="font-mono">VITE_SUPABASE_URL</code> and <code className="font-mono">VITE_SUPABASE_ANON_KEY</code>, run{" "}
-                <code className="font-mono">supabase/schema.sql</code>, then create an admin user (see SUPABASE_SETUP.md).
+              <p className="text-[0.76rem] text-amber-700 mt-1 leading-relaxed">
+                Add <code className="font-mono">VITE_SUPABASE_URL</code> and{" "}
+                <code className="font-mono">VITE_SUPABASE_ANON_KEY</code> to the deployment environment, then rebuild the site.
+                Backend migrations, first-admin setup and Edge Function deployment are documented in{" "}
+                <code className="font-mono">SUPABASE_SETUP.md</code>.
               </p>
             </div>
           ) : (
