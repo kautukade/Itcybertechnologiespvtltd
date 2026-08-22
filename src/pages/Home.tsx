@@ -884,7 +884,7 @@ function Resources({ resources }: { resources: ResourcePreview[] }) {
               <Link to={r.to} className="group relative block h-full bg-white hairline-light clip-corner p-5 overflow-hidden transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_20px_50px_-22px_rgba(20,32,58,.35)]">
                 <p className="flex items-center justify-between font-mono text-[0.6rem] uppercase tracking-[0.16em]">
                   <span className="text-brand-600">{r.kind}</span>
-                  <span className="text-ink-400">{r.minutes}</span>
+                  <span className="text-ink-400">{r.meta}</span>
                 </p>
                 <h3 className="font-display font-bold text-ink-900 text-[1.05rem] tracking-tight mt-3 leading-snug group-hover:text-brand-600 transition-colors">{r.title}</h3>
                 <p className="text-[0.83rem] text-ink-500 mt-2 leading-relaxed">{r.summary}</p>
