@@ -1,6 +1,6 @@
 # Supabase Setup — ITCYBER (beginner-friendly)
 
-This guide takes a brand-new Supabase project to a working production backend for **www.itcyber.in**: database + RLS, Auth, storage buckets, and the three Edge Functions that receive public form submissions.
+This guide takes a brand-new Supabase project to a working production backend for **www.itcyber.in**: database + RLS, Auth, storage buckets, public Edge Functions, server-side abuse controls and the signed resume-upload flow.
 
 Everything required is in this repository:
 
@@ -9,13 +9,17 @@ supabase/
   migrations/
     0001_initial.sql                    # tables, RLS policies, storage buckets
     0002_lead_notes_and_scheduling.sql  # lead notes, announcement scheduling
-    0003_security_hardening.sql         # profile guard + resume hardening
+    0003_security_hardening.sql         # profile guard + resume limits
     0004_unique_constraints.sql         # idempotent seed constraints
-    0005_production_hardening.sql       # media limits, case-study invariant, indexes
+    0005_production_hardening.sql       # media limits, invariants, indexes
+    0006_security_hardening.sql         # abuse throttling, authorship guards, signed-upload model
   functions/
+    _shared/security.ts
     submit-contact/index.ts
     submit-assessment/index.ts
     submit-career/index.ts
+    prepare-resume-upload/index.ts
+    deno.json
   seed.sql                              # optional starter CMS content
 ```
 
@@ -34,9 +38,9 @@ supabase/
 Dashboard → **Project Settings → API**:
 
 - Project URL → `VITE_SUPABASE_URL`
-- `anon` / publishable key → `VITE_SUPABASE_ANON_KEY`
+- publishable / anon key → `VITE_SUPABASE_ANON_KEY`
 
-The publishable/anon key is designed for browser use. The **service-role key must never appear in frontend code, Vite variables, screenshots, or Git**. Supabase provides it to Edge Functions server-side.
+The publishable/anon key is designed for browser use. The **service-role key must never appear in frontend code, Vite variables, screenshots, Git, or client logs**. Supabase makes server credentials available to Edge Functions at runtime.
 
 ## 3. Apply migrations
 
@@ -50,7 +54,7 @@ supabase db push
 supabase migration list
 ```
 
-`migration list` should show the same versions in Local and Remote.
+`migration list` should show the same versions in Local and Remote, including `0006`.
 
 ### Option B — SQL Editor
 
@@ -61,12 +65,15 @@ Dashboard → **SQL Editor → New query**, then run the complete files in this 
 3. `supabase/migrations/0003_security_hardening.sql`
 4. `supabase/migrations/0004_unique_constraints.sql`
 5. `supabase/migrations/0005_production_hardening.sql`
+6. `supabase/migrations/0006_security_hardening.sql`
 
-Verify the Table Editor contains the expected tables including `profiles`, `services`, `ai_agents`, `automations`, `industries`, `case_studies`, `technologies`, `resources`, `jobs`, `contact_leads`, `lead_notes`, `automation_assessments`, `career_applications`, `media_library`, `seo_pages`, `legal_pages`, `announcements`, `social_links`, `admin_activity_logs`, and `site_settings`.
+Verify the Table Editor contains the expected tables including `profiles`, `services`, `ai_agents`, `automations`, `industries`, `case_studies`, `technologies`, `resources`, `jobs`, `contact_leads`, `lead_notes`, `automation_assessments`, `career_applications`, `media_library`, `seo_pages`, `legal_pages`, `announcements`, `social_links`, `admin_activity_logs`, `site_settings`, and `public_rate_limits`.
+
+`public_rate_limits` is intentionally not readable by normal anonymous/authenticated clients. It is used by the service-role-only rate-limit function.
 
 ## 4. Load starter CMS content
 
-Run `supabase/seed.sql` in SQL Editor after all migrations. It is idempotent and can be run again safely when the seed changes.
+Run `supabase/seed.sql` in SQL Editor after all migrations. It is designed to be repeatable where the documented unique constraints exist.
 
 The seed intentionally leaves contact channels empty and seeds jobs unpublished/closed. Configure real contact details in Admin → Settings and publish real vacancies from Admin → Jobs.
 
@@ -84,12 +91,20 @@ Migrations create and harden:
 
 | Bucket | Visibility | Server limits | Purpose |
 | --- | --- | --- | --- |
-| `site-media` | Public | 10 MB; JPG/PNG/WEBP/AVIF/SVG/MP4 | Admin-managed website media |
+| `site-media` | Public | 10 MB; JPG/PNG/WEBP/AVIF/MP4 | Admin-managed website media |
 | `career-resumes` | Private | 5 MB; PDF/DOC/DOCX | Applicant resumes |
 
-Anonymous resume uploads are restricted to generated paths matching `pending/<uuid>.(pdf|doc|docx)`. Anonymous visitors cannot read, update, or delete resumes. HR/admin staff open them through short-lived signed URLs.
+### Important security behavior
 
-## 7. Deploy Edge Functions
+- Arbitrary public SVG uploads are intentionally disabled because SVG can contain active content.
+- Anonymous visitors have **no direct `INSERT` policy** on `career-resumes`.
+- The browser calls `prepare-resume-upload`, which validates file metadata and abuse limits server-side.
+- That function generates a controlled path matching `pending/<uuid>.(pdf|doc|docx)` and returns a short-lived signed upload token.
+- The browser uploads only to that signed path.
+- Anonymous visitors cannot read, update or delete resumes.
+- HR/admin staff open resumes through short-lived signed read URLs.
+
+## 7. Deploy the four public Edge Functions
 
 From the linked repository:
 
@@ -97,11 +112,12 @@ From the linked repository:
 supabase functions deploy submit-contact --no-verify-jwt
 supabase functions deploy submit-assessment --no-verify-jwt
 supabase functions deploy submit-career --no-verify-jwt
+supabase functions deploy prepare-resume-upload --no-verify-jwt
 ```
 
-`--no-verify-jwt` is intentional because anonymous visitors submit these public forms. The functions perform their own validation and use the server-side service role for inserts.
+`--no-verify-jwt` is intentional because these endpoints are called by anonymous public visitors. They are not unauthenticated database writes: each function performs its own strict validation/origin checks and uses server-side credentials only after the request passes those controls.
 
-Production origins already include:
+Production origins built into the shared security layer include:
 
 ```text
 https://www.itcyber.in
@@ -109,13 +125,21 @@ https://itcyber.in
 https://itcybertechnologiespvtltd.netlify.app
 ```
 
-For Qwen, Netlify deploy previews, or another temporary hostname, add an extra allow-list entry:
+For Qwen, Netlify deploy previews, or another temporary hostname, add the exact additional origin:
 
 ```bash
 supabase secrets set ALLOWED_ORIGINS="https://your-preview-host.example"
 ```
 
 Multiple extra origins are comma-separated. Do not use `*`.
+
+For rate-limit fingerprinting, configure a dedicated random server secret rather than putting any value in frontend environment variables:
+
+```bash
+supabase secrets set RATE_LIMIT_PEPPER="<long-random-server-only-value>"
+```
+
+Never commit `RATE_LIMIT_PEPPER` or the service-role key.
 
 ## 8. Create the first admin
 
@@ -162,22 +186,15 @@ VITE_SUPABASE_ANON_KEY=<publishable-key>
 VITE_SITE_URL=https://www.itcyber.in
 ```
 
-While testing only on the default Netlify hostname, `VITE_SITE_URL` may temporarily use that hostname. After changing any Vite variable, trigger **Clear cache and deploy site** because Vite injects these values at build time.
+After changing a Vite variable, trigger a fresh deploy because Vite injects these values at build time.
 
-Never create a `VITE_SUPABASE_SERVICE_ROLE_KEY`.
+Never create `VITE_SUPABASE_SERVICE_ROLE_KEY`, `VITE_RATE_LIMIT_PEPPER`, or any other frontend variable containing a server secret.
 
-## 10. Verify RLS
+## 10. Verify RLS and privilege guards
 
-Anonymous visitors must not be able to read leads, assessments, applications, or admin logs, and must not be able to mutate CMS content directly. Test at minimum:
+Anonymous visitors must not be able to read leads, assessments, applications, admin logs, lead-note internals, or the rate-limit ledger, and must not be able to mutate CMS content directly.
 
-```sql
-select * from public.contact_leads limit 1;
-select * from public.career_applications limit 1;
-select * from public.automation_assessments limit 1;
-select * from public.admin_activity_logs limit 1;
-```
-
-Run those through an anon/PostgREST context, not as SQL Editor database owner. They must return no protected data.
+Test through an anon/PostgREST context, not as SQL Editor database owner. Protected tables must return no protected data.
 
 Also verify a normal authenticated user cannot self-promote:
 
@@ -187,38 +204,70 @@ update public.profiles set role = 'super_admin' where id = auth.uid();
 update public.profiles set email = 'x@example.com' where id = auth.uid();
 ```
 
-These must fail for non-super-admin users. Updating their own `full_name` is allowed.
+These must fail for non-super-admin users. Updating their own allowed profile fields such as `full_name` remains permitted.
+
+Also verify:
+
+- audit log inserts cannot claim another staff member's `user_id`;
+- a sales user cannot create a lead note under another staff member's identity;
+- anonymous direct inserts into `career-resumes` are rejected;
+- `public_rate_limits` cannot be read or mutated by `anon` / normal `authenticated` users.
 
 ## 11. Production smoke test
 
-After frontend deployment and Edge Function deployment:
+After frontend deployment, migration `0006`, and all four Edge Functions are live:
 
-1. Open `/itcyberadmin/login` and sign in with the active admin.
+1. Open `/itcyberadmin/login` and sign in with an active admin.
 2. Submit the public Contact form; confirm a row in `contact_leads`.
 3. Submit the assessment; confirm a row in `automation_assessments`.
-4. Publish one test job with applications open, submit a small resume, and confirm the row + private storage object.
-5. Close/unpublish that role and confirm the public application endpoint rejects new submissions for it.
-6. In Admin → Applications, confirm the resume opens through a signed URL.
-7. In Admin → Media, verify oversized/disallowed files are rejected.
+4. Publish one test job with applications open.
+5. Submit a small PDF/DOC/DOCX resume and confirm:
+   - `prepare-resume-upload` returns successfully,
+   - the private storage object is created under `pending/`,
+   - a row appears in `career_applications`.
+6. Close/unpublish that role and confirm `submit-career` rejects new submissions for it.
+7. In Admin → Applications, confirm the resume opens through a short-lived signed URL.
+8. In Admin → Media, verify SVG and oversized/disallowed files are rejected.
+9. Export Leads and Applications CSVs with a test value beginning with `=`, `+`, `-`, or `@`; confirm the exported value is neutralized rather than interpreted as a spreadsheet formula.
+10. Test a disallowed Origin against the public Edge Functions; confirm it receives `403 Origin not allowed`.
+
+## 12. Repository security verification
+
+Before production releases run:
+
+```bash
+npm ci
+node scripts/security-check.mjs
+npm run typecheck
+npm audit --omit=dev --audit-level=moderate
+npm run build
+```
+
+GitHub CI runs the same security regression checks, production dependency audit, TypeScript build, and Deno checks for all four Edge Functions.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
 | Admin says “Supabase is not configured” | Add Netlify/local Vite env vars and rebuild |
-| Forms return 503 | Redeploy Edge Functions and verify Supabase-provided function secrets |
-| Browser shows CORS error | Add the exact preview origin to `ALLOWED_ORIGINS` |
+| Forms return 503 | Verify migration `0006`, redeploy the Edge Functions, and check server-side function secrets/logs |
+| Browser shows CORS error / 403 | Add the exact trusted preview origin to `ALLOWED_ORIGINS`; never use `*` |
 | Admin gets RLS error | Verify the profile is active and has the required role |
-| Resume upload rejected | PDF/DOC/DOCX only, ≤ 5 MB, generated `pending/<uuid>` path |
+| Resume upload preparation rejected | PDF/DOC/DOCX only, 1 byte–5 MB, correct MIME/extension, allowed origin |
+| Resume token works but upload fails | Verify `career-resumes` is private and the signed-upload flow is deployed; do not restore an anonymous INSERT policy |
+| Media SVG rejected | Expected security behavior; use PNG/WEBP/AVIF/JPG or MP4 instead |
 | Migration history differs | Run `supabase migration list`; do not edit already-applied historical migrations |
+| CI dependency audit fails | Upgrade/remove the vulnerable production dependency; do not lower the audit threshold to hide it |
 
 ## Release rule
 
 For every new production database change:
 
-1. Create the next migration (`0006_...sql`, etc.).
+1. Create the next migration (`0007_...sql` after the current `0006`).
 2. Open a PR.
-3. Let CI typecheck/build and validate Edge Functions.
+3. Let CI run security regression checks, dependency audit, TypeScript/build, and Deno validation.
 4. Apply the migration to staging/production.
 5. Redeploy affected Edge Functions and frontend.
-6. Run the smoke tests above.
+6. Run the production smoke tests above.
+
+Do not rewrite already-applied migration files to make future schema changes.
