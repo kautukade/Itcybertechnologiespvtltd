@@ -60,7 +60,6 @@ begin
     raise exception 'invalid rate-limit arguments' using errcode = '22023';
   end if;
 
-  -- Serialise identical buckets so concurrent requests cannot race the count.
   perform pg_advisory_xact_lock(hashtextextended(p_scope || ':' || p_fingerprint, 0));
 
   select count(*)::integer
@@ -77,7 +76,6 @@ begin
   insert into public.public_rate_limits (scope, fingerprint)
   values (p_scope, p_fingerprint);
 
-  -- Opportunistic bounded cleanup. This is not relied on for correctness.
   delete from public.public_rate_limits
   where created_at < now() - interval '2 days';
 
@@ -90,7 +88,6 @@ grant execute on function public.consume_public_rate_limit(text,text,integer,int
 
 
 -- ═════════════════════════ AUDIT AUTHORSHIP ═════════════════════════
--- An authenticated staff member may only create an audit entry as themself.
 
 drop policy if exists "audit insert" on public.admin_activity_logs;
 
@@ -105,8 +102,6 @@ with check (
 
 
 -- ═════════════════════════ LEAD NOTE AUTHORSHIP ═════════════════════════
--- Replace the broad FOR ALL policy so a sales user cannot forge another
--- employee's note identity. Admins may moderate existing notes.
 
 drop policy if exists "lead notes manage" on public.lead_notes;
 drop policy if exists "lead notes read" on public.lead_notes;
@@ -161,6 +156,25 @@ using (
   )
 );
 
+-- Keep authorship immutable even for an admin editing the note body.
+create or replace function public.protect_lead_note_author()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if new.admin_user_id is distinct from old.admin_user_id then
+    raise exception 'lead note author cannot be changed' using errcode = '42501';
+  end if;
+  return new;
+end
+$$;
+
+drop trigger if exists lead_notes_protect_author on public.lead_notes;
+create trigger lead_notes_protect_author
+before update on public.lead_notes
+for each row execute function public.protect_lead_note_author();
+
 
 -- ═════════════════════════ PUBLIC MEDIA HARDENING ═════════════════════════
 -- SVG is active content when served from a public bucket. The application does
@@ -179,7 +193,6 @@ set
   ]
 where id = 'site-media';
 
--- Existing public reads remain intentional; harden write paths/extensions.
 drop policy if exists "site-media admin write" on storage.objects;
 drop policy if exists "site-media admin update" on storage.objects;
 
