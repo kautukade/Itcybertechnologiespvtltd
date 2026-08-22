@@ -36,20 +36,42 @@ function upsertCanonical(href: string) {
   el.setAttribute("href", href);
 }
 
+function absoluteUrl(value: string | undefined, fallbackPath: string): string {
+  if (!value) return new URL(fallbackPath, SITE_URL).toString();
+  try {
+    return new URL(value, SITE_URL).toString();
+  } catch {
+    return new URL(fallbackPath, SITE_URL).toString();
+  }
+}
+
+function pathFromCanonical(value: string | null | undefined, fallback: string): string {
+  if (!value) return fallback;
+  try {
+    const url = new URL(value, SITE_URL);
+    return `${url.pathname}${url.search}${url.hash}` || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function applyPageMeta(meta: PageMeta) {
+  const canonical = absoluteUrl(meta.path, "/");
+  const ogImage = absoluteUrl(meta.ogImage, "/og/itcyber-default.svg");
+
   document.title = meta.title;
   upsertMeta("name", "description", meta.description);
   upsertMeta("name", "robots", meta.robots ?? "index, follow");
-  upsertCanonical(`${SITE_URL}${meta.path}`);
+  upsertCanonical(canonical);
   upsertMeta("property", "og:title", meta.title);
   upsertMeta("property", "og:description", meta.description);
-  upsertMeta("property", "og:url", `${SITE_URL}${meta.path}`);
+  upsertMeta("property", "og:url", canonical);
   upsertMeta("property", "og:type", "website");
-  upsertMeta("property", "og:image", meta.ogImage ?? `${SITE_URL}/og/itcyber-default.svg`);
+  upsertMeta("property", "og:image", ogImage);
   upsertMeta("name", "twitter:card", "summary_large_image");
   upsertMeta("name", "twitter:title", meta.title);
   upsertMeta("name", "twitter:description", meta.description);
-  upsertMeta("name", "twitter:image", meta.ogImage ?? `${SITE_URL}/og/itcyber-default.svg`);
+  upsertMeta("name", "twitter:image", ogImage);
 
   let schemaEl = document.getElementById("page-schema");
   if (meta.schema) {
@@ -78,12 +100,14 @@ export function usePageMeta(meta: PageMeta) {
       applyPageMeta({
         title: row.title ?? meta.title,
         description: row.description ?? meta.description,
-        path: row.canonical ? new URL(row.canonical).pathname : meta.path,
+        path: pathFromCanonical(row.canonical, meta.path),
         ogImage: row.og_image ?? meta.ogImage,
         robots: row.robots ?? meta.robots,
         schema: (row.schema_json as Record<string, unknown>) ?? meta.schema,
       });
-    })();
+    })().catch(() => {
+      /* Keep static metadata if the CMS override cannot be read or parsed. */
+    });
     return () => {
       cancelled = true;
     };
