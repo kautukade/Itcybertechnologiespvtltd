@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { useAdminTable } from "../lib/cms";
 import { logActivity } from "../lib/auth";
+import { csvCell, openExternal, safeHttpUrl } from "../lib/safety";
 import type { JobRow, CareerApplicationRow, Json } from "../types/db";
 import { PageHead, ATable, AButton, AInput, ASelect, ATextarea, ACheck, ADrawer, AConfirm, ABadge, FieldRow, Pagination, toast, ErrorState, type Column } from "./ui";
 
@@ -41,15 +42,18 @@ export function JobsAdmin() {
     if (!db || !editing) return;
     let resp: Json[]; let req: Json[];
     try {
-      resp = JSON.parse(String(form.responsibilities || "[]"));
-      req = JSON.parse(String(form.requirements || "[]"));
-    } catch { toast("Invalid JSON in responsibilities/requirements", "err"); return; }
+      const parsedResp = JSON.parse(String(form.responsibilities || "[]"));
+      const parsedReq = JSON.parse(String(form.requirements || "[]"));
+      if (!Array.isArray(parsedResp) || !Array.isArray(parsedReq)) throw new Error("arrays required");
+      resp = parsedResp as Json[];
+      req = parsedReq as Json[];
+    } catch { toast("Responsibilities and requirements must be valid JSON arrays", "err"); return; }
     if (!String(form.title).trim()) { toast("Title is required", "err"); return; }
     const payload = {
-      title: String(form.title), department: String(form.department), location: String(form.location),
-      employment_type: String(form.employment_type), experience: String(form.experience) || null,
-      description: String(form.description) || null, responsibilities_json: resp, requirements_json: req,
-      salary_range: String(form.salary_range) || null, published: Boolean(form.published),
+      title: String(form.title).trim().slice(0, 160), department: String(form.department).slice(0, 80), location: String(form.location).slice(0, 160),
+      employment_type: String(form.employment_type).slice(0, 80), experience: String(form.experience).slice(0, 200) || null,
+      description: String(form.description).slice(0, 8000) || null, responsibilities_json: resp, requirements_json: req,
+      salary_range: String(form.salary_range).slice(0, 160) || null, published: Boolean(form.published),
       applications_open: Boolean(form.applications_open), sort_order: Number(form.sort_order) || 0,
     };
     setSaving(true);
@@ -85,22 +89,22 @@ export function JobsAdmin() {
 
       <ADrawer open={!!editing} onClose={() => setEditing(null)} title={editing?.isNew ? "New role" : "Edit role"} wide>
         <div className="grid sm:grid-cols-2 gap-4">
-          <FieldRow label="Title"><AInput value={String(form.title)} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} /></FieldRow>
+          <FieldRow label="Title"><AInput maxLength={160} value={String(form.title)} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} /></FieldRow>
           <FieldRow label="Department">
             <ASelect value={String(form.department)} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}>
               {["Engineering", "Automation", "Business", "Design"].map((d) => <option key={d}>{d}</option>)}
             </ASelect>
           </FieldRow>
-          <FieldRow label="Location"><AInput value={String(form.location)} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} /></FieldRow>
+          <FieldRow label="Location"><AInput maxLength={160} value={String(form.location)} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} /></FieldRow>
           <FieldRow label="Employment type">
             <ASelect value={String(form.employment_type)} onChange={(e) => setForm((f) => ({ ...f, employment_type: e.target.value }))}>
               {["Full-time", "Part-time", "Contract", "Internship"].map((d) => <option key={d}>{d}</option>)}
             </ASelect>
           </FieldRow>
-          <FieldRow label="Experience"><AInput value={String(form.experience)} onChange={(e) => setForm((f) => ({ ...f, experience: e.target.value }))} placeholder="e.g. 2–4 years" /></FieldRow>
-          <FieldRow label="Salary range"><AInput value={String(form.salary_range)} onChange={(e) => setForm((f) => ({ ...f, salary_range: e.target.value }))} placeholder="Optional" /></FieldRow>
+          <FieldRow label="Experience"><AInput maxLength={200} value={String(form.experience)} onChange={(e) => setForm((f) => ({ ...f, experience: e.target.value }))} placeholder="e.g. 2–4 years" /></FieldRow>
+          <FieldRow label="Salary range"><AInput maxLength={160} value={String(form.salary_range)} onChange={(e) => setForm((f) => ({ ...f, salary_range: e.target.value }))} placeholder="Optional" /></FieldRow>
           <div className="sm:col-span-2">
-            <FieldRow label="Description"><ATextarea value={String(form.description)} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></FieldRow>
+            <FieldRow label="Description"><ATextarea maxLength={8000} value={String(form.description)} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></FieldRow>
           </div>
           <div className="sm:col-span-2">
             <FieldRow label="Responsibilities (JSON array of strings)">
@@ -182,8 +186,8 @@ export function ApplicationsAdmin() {
 
   const exportCsv = () => {
     const head = ["name", "email", "phone", "location", "experience", "status", "created_at"];
-    const lines = filtered.map((a) => head.map((h) => `"${String((a as unknown as Record<string, unknown>)[h] ?? "").replace(/"/g, '""')}"`).join(","));
-    const blob = new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv" });
+    const lines = filtered.map((a) => head.map((h) => csvCell((a as unknown as Record<string, unknown>)[h])).join(","));
+    const blob = new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
     const el = document.createElement("a");
     el.href = URL.createObjectURL(blob);
     el.download = `itcyber-applications-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -197,7 +201,7 @@ export function ApplicationsAdmin() {
     const { data, error: e } = await db.storage.from("career-resumes").createSignedUrl(a.resume_path, 300);
     setSigning(false);
     if (e || !data) { toast(e?.message ?? "Could not sign resume URL", "err"); return; }
-    window.open(data.signedUrl, "_blank");
+    if (!openExternal(data.signedUrl)) toast("Signed resume URL was invalid", "err");
   };
 
   const columns: Column<CareerApplicationRow>[] = [
@@ -213,7 +217,7 @@ export function ApplicationsAdmin() {
 
   return (
     <div>
-      <PageHead title="Career Applications" desc="Resumes live in the private career-resumes bucket — access via time-limited signed URLs only." actions={<AButton variant="ghost" onClick={exportCsv}>Export CSV</AButton>} />
+      <PageHead title="Career Applications" desc="Resumes live in the private career-resumes bucket — access via time-limited signed URLs only. CSV exports are formula-safe." actions={<AButton variant="ghost" onClick={exportCsv}>Export CSV</AButton>} />
 
       <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4 grid sm:grid-cols-3 gap-2">
         <AInput placeholder="Search candidates…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} aria-label="Search applications" />
@@ -234,7 +238,7 @@ export function ApplicationsAdmin() {
         {open && (
           <div>
             <FieldRow label="Stage">
-              <ASelect value={open.status} onChange={(e) => patch(open.id, { status: e.target.value as CareerApplicationRow["status"] }, `application stage → ${e.target.value}`)}>
+              <ASelect value={open.status} onChange={(e) => void patch(open.id, { status: e.target.value as CareerApplicationRow["status"] }, `application stage → ${e.target.value}`)}>
                 {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
               </ASelect>
             </FieldRow>
@@ -245,13 +249,13 @@ export function ApplicationsAdmin() {
             </dl>
             <div className="flex flex-wrap gap-2 mt-5">
               {open.resume_path ? (
-                <AButton size="sm" loading={signing} onClick={() => openResume(open)}>Open resume (signed URL · 5 min)</AButton>
+                <AButton size="sm" loading={signing} onClick={() => void openResume(open)}>Open resume (signed URL · 5 min)</AButton>
               ) : (
                 <ABadge>No resume attached</ABadge>
               )}
-              {open.linkedin_url && <AButton size="sm" variant="ghost" onClick={() => window.open(open.linkedin_url!, "_blank")}>LinkedIn ↗</AButton>}
-              {open.portfolio_url && <AButton size="sm" variant="ghost" onClick={() => window.open(open.portfolio_url!, "_blank")}>Portfolio ↗</AButton>}
-              <AButton size="sm" variant="ghost" onClick={() => window.open(`mailto:${open.email}`)}>Email</AButton>
+              {safeHttpUrl(open.linkedin_url) && <AButton size="sm" variant="ghost" onClick={() => openExternal(open.linkedin_url)}>LinkedIn ↗</AButton>}
+              {safeHttpUrl(open.portfolio_url) && <AButton size="sm" variant="ghost" onClick={() => openExternal(open.portfolio_url)}>Portfolio ↗</AButton>}
+              <AButton size="sm" variant="ghost" onClick={() => { window.location.href = `mailto:${open.email}`; }}>Email</AButton>
             </div>
             {open.message && (
               <div className="mt-5">
@@ -261,10 +265,10 @@ export function ApplicationsAdmin() {
             )}
             <div className="mt-6">
               <FieldRow label="HR notes">
-                <ATextarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Visible to the team only…" />
+                <ATextarea maxLength={5000} rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Visible to the team only…" />
               </FieldRow>
               <div className="flex gap-2 mt-2">
-                <AButton size="sm" disabled={!note.trim()} onClick={() => patch(open.id, { notes: (open.notes ? open.notes + "\n" : "") + `[${new Date().toLocaleString()}] ${note.trim()}` }, "application note added")}>Save note</AButton>
+                <AButton size="sm" disabled={!note.trim()} onClick={() => void patch(open.id, { notes: ((open.notes ? open.notes + "\n" : "") + `[${new Date().toLocaleString()}] ${note.trim()}`).slice(0, 20000) }, "application note added")}>Save note</AButton>
               </div>
               {open.notes && <p className="mt-4 text-[0.8rem] text-slate-600 bg-amber-50 border border-amber-200 rounded-md p-3 whitespace-pre-wrap">{open.notes}</p>}
             </div>
