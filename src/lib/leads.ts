@@ -1,10 +1,6 @@
 /**
- * Lead submission layer.
- *
- * Forms NEVER show a success state unless the backend genuinely stored the
- * record: submissions go through the `submit-public` Supabase Edge Function
- * (server-side validation, honeypot, rate limiting, service-role insert).
- * If the backend is not configured or fails, we surface a real error.
+ * Public submission layer. Forms never fake success: all writes go through
+ * validated Edge Functions and failures are surfaced to the visitor.
  */
 import { supabase, supabaseConfigured } from "./supabase";
 
@@ -36,7 +32,20 @@ const FUNCTION_BY_KIND: Record<SubmissionKind, string> = {
   career: "submit-career",
 };
 
-/** Submit via the kind-specific Edge Function. Throws SubmissionError on any failure. */
+async function functionErrorMessage(error: unknown, fallback: string): Promise<string> {
+  try {
+    const ctx = error as { context?: Response };
+    if (ctx.context) {
+      const body = (await ctx.context.json()) as { error?: string };
+      if (body.error) return body.error;
+    }
+  } catch {
+    /* keep fallback */
+  }
+  return fallback;
+}
+
+/** Submit via the kind-specific Edge Function. Throws on any failure. */
 export async function submitPublic(
   kind: SubmissionKind,
   payload: Record<string, unknown>,
@@ -48,46 +57,58 @@ export async function submitPublic(
     body: { ...payload, ...meta },
   });
 
-  if (error) {
-    // Try to surface the function's real message (422/429/500)
-    let message = SUBMIT_ERROR;
-    try {
-      const ctx = error as unknown as { context?: Response };
-      if (ctx.context) {
-        const body = (await ctx.context.json()) as { error?: string };
-        if (body.error) message = body.error;
-      }
-    } catch {
-      /* keep default message */
-    }
-    throw new SubmissionError(message);
-  }
+  if (error) throw new SubmissionError(await functionErrorMessage(error, SUBMIT_ERROR));
 }
 
 /* ─────────────── resume upload (private `career-resumes` bucket) ─────────────── */
 
-const RESUME_TYPES = [
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
+const RESUME_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
 const RESUME_MAX_BYTES = 5 * 1024 * 1024;
 
+/**
+ * Anonymous visitors no longer have direct INSERT permission on Storage.
+ * `prepare-resume-upload` validates metadata/rate limits server-side and returns
+ * a short-lived signed token for one generated path.
+ */
 export async function uploadResume(file: File): Promise<string> {
   if (!supabase) throw new SubmissionError(BACKEND_MISSING_ERROR);
-  if (!RESUME_TYPES.includes(file.type))
-    throw new SubmissionError("Resume must be a PDF, DOC or DOCX file.");
-  if (file.size > RESUME_MAX_BYTES)
-    throw new SubmissionError("Resume must be 5 MB or smaller.");
 
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "pdf";
-  const path = `pending/${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from("career-resumes").upload(path, file, {
-    contentType: file.type,
-    upsert: false,
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!RESUME_TYPES[ext] || RESUME_TYPES[ext] !== file.type)
+    throw new SubmissionError("Resume must be a PDF, DOC or DOCX file.");
+  if (file.size < 1 || file.size > RESUME_MAX_BYTES)
+    throw new SubmissionError("Resume must be between 1 byte and 5 MB.");
+
+  const { data, error: tokenError } = await supabase.functions.invoke("prepare-resume-upload", {
+    body: {
+      file_name: file.name,
+      file_type: file.type,
+      file_size: file.size,
+    },
   });
-  if (error) throw new SubmissionError("Resume upload failed — please try again or email it to us.");
-  return path;
+
+  if (tokenError) {
+    throw new SubmissionError(
+      await functionErrorMessage(tokenError, "Resume upload could not be prepared — please try again or email it to us.")
+    );
+  }
+
+  const signed = data as { path?: string; token?: string } | null;
+  if (!signed?.path || !signed.token)
+    throw new SubmissionError("Resume upload could not be prepared — please try again.");
+
+  const { error: uploadError } = await supabase.storage
+    .from("career-resumes")
+    .uploadToSignedUrl(signed.path, signed.token, file, { contentType: file.type });
+
+  if (uploadError)
+    throw new SubmissionError("Resume upload failed — please try again or email it to us.");
+
+  return signed.path;
 }
 
 export const resumeUploadReady = supabaseConfigured;
