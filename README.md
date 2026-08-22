@@ -121,3 +121,8 @@ VITE_SITE_URL
 - No fake form-success states, fake client testimonials or invented metrics.
 - New database changes use a new numbered migration; already-applied migration history is not rewritten.
 - Dependabot checks npm and GitHub Actions dependencies regularly; CI rejects production dependency advisories at moderate severity or higher.
+
+
+### Dynamic sitemap
+
+Netlify routes `/sitemap.xml` through `netlify/functions/sitemap.mjs`. The function uses the public Supabase key and RLS to include currently published industry and resource slugs, while retaining a static core-route fallback if Supabase is unavailable.

@@ -8,10 +8,13 @@ import { site } from "../data/site";
 import { useCollection } from "../lib/cms";
 import type { IndustryRow } from "../types/db";
 import NotFound from "./NotFound";
+import { usePageMeta } from "../lib/seo";
+
+type PublicIndustry = Industry & { seoTitle?: string; seoDescription?: string };
 
 /** Live published industries from the CMS, with the bundled data as fallback.
  *  A newly published industry renders at /solutions/<slug> without code changes. */
-function useIndustries(): Industry[] {
+function useIndustries(): PublicIndustry[] {
   const { data } = useCollection("industries", staticIndustries as unknown as IndustryRow[]);
   return useMemo(
     () =>
@@ -29,6 +32,8 @@ function useIndustries(): Industry[] {
           integrations: (row.integrations_json as string[]) ?? [],
           agents: (row.agents_json as string[]) ?? [],
           faq: (row.faq_json as { q: string; a: string }[]) ?? [],
+          seoTitle: row.seo_title ?? undefined,
+          seoDescription: row.seo_description ?? undefined,
         };
       }),
     [data]
@@ -41,6 +46,13 @@ export function IndustryPage() {
   const { slug } = useParams();
   const industries = useIndustries();
   const ind = industries.find((i) => i.slug === slug);
+  const pagePath = `/solutions/${slug ?? ""}`;
+  usePageMeta({
+    title: ind?.seoTitle ?? (ind ? `${ind.name} — AI & Automation Solutions | ITCYBER` : "Industry Solution Not Found | ITCYBER"),
+    description: ind?.seoDescription ?? ind?.short ?? "Industry-specific AI and automation playbook from ITCYBER.",
+    path: pagePath,
+    robots: ind ? undefined : "noindex, nofollow",
+  });
   /* Unknown slug → real 404, never a silent redirect to the index. */
   if (!ind) return <NotFound />;
   const idx = industries.indexOf(ind);
