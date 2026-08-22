@@ -4,8 +4,6 @@ import { cn } from "../lib/utils";
 import { Reveal, Scramble } from "../lib/motion";
 import { IconArrow, IconChevron } from "./icons";
 
-/* ---------------------------------- utils ---------------------------------- */
-
 /* --------------------------------- Button ---------------------------------- */
 
 type BtnProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick"> & {
@@ -15,9 +13,7 @@ type BtnProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick"> & {
   to?: string;
   href?: string;
   arrow?: boolean;
-  /** element-agnostic so the same handler works on <button>, <Link> and <a> */
   onClick?: (e: React.MouseEvent<HTMLElement>) => void;
-  /** forwarded to <a> renders (external links, tel:, mailto:) */
   target?: string;
   download?: string | boolean;
 };
@@ -44,12 +40,23 @@ export const Button = forwardRef<HTMLButtonElement, BtnProps>(function Button(
       "bg-[#1FAF63] text-white hover:bg-[#25c96f] active:translate-y-px shadow-[0_8px_30px_-10px_rgba(31,175,99,.7)]",
   }[variant];
 
+  const inactive = Boolean(disabled || loading);
   const cls = cn(
     "group/btn relative inline-flex items-center justify-center gap-2 font-display font-semibold tracking-tight transition-all duration-300 clip-corner disabled:opacity-50 disabled:pointer-events-none select-none",
+    inactive && "opacity-50 pointer-events-none",
     sizes,
     variants,
     className
   );
+
+  const guardedClick = (e: React.MouseEvent<HTMLElement>) => {
+    if (inactive) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onClick?.(e);
+  };
 
   const inner = (
     <>
@@ -63,12 +70,21 @@ export const Button = forwardRef<HTMLButtonElement, BtnProps>(function Button(
     </>
   );
 
-  /* onClick / aria-* / data-* / title / target / rel / download must survive on
-     Link and anchor renders too — previously only <button> received them, which
-     silently dropped handlers like the mobile-menu close action. */
+  /* React Router's Link and native anchors do not share ButtonHTMLAttributes,
+     but aria-* / data-* values are valid on every rendered element. Keep those
+     values instead of silently dropping accessibility and analytics metadata. */
+  const elementProps = rest as Record<string, unknown>;
+
   if (to)
     return (
-      <Link to={to} className={cls} onClick={onClick} title={title}>
+      <Link
+        to={to}
+        className={cls}
+        onClick={guardedClick}
+        title={title}
+        aria-disabled={inactive || undefined}
+        {...elementProps}
+      >
         {inner}
       </Link>
     );
@@ -80,16 +96,18 @@ export const Button = forwardRef<HTMLButtonElement, BtnProps>(function Button(
         target={target ?? (external ? "_blank" : undefined)}
         rel={rel ?? (external ? "noreferrer" : undefined)}
         className={cls}
-        onClick={onClick}
+        onClick={guardedClick}
         title={title}
         download={download}
+        aria-disabled={inactive || undefined}
+        {...elementProps}
       >
         {inner}
       </a>
     );
   }
   return (
-    <button ref={ref} type={type ?? "button"} className={cls} disabled={disabled || loading} onClick={onClick} title={title} {...rest}>
+    <button ref={ref} type={type ?? "button"} className={cls} disabled={inactive} onClick={guardedClick} title={title} {...rest}>
       {inner}
     </button>
   );
@@ -280,7 +298,7 @@ export function Field({
         {label}
       </label>
       {children}
-      {hint && !error && <p className={cn("text-xs", tone === "dark" ? "text-ink-400" : "text-ink-400")}>{hint}</p>}
+      {hint && !error && <p className="text-xs text-ink-400">{hint}</p>}
       {error && (
         <p className="text-xs text-rose-ic flex items-center gap-1.5" role="alert">
           <span className="inline-block w-1 h-1 bg-rose-ic rounded-full" aria-hidden />
@@ -300,10 +318,10 @@ export function TextArea({ tone = "dark", error, className, ...rest }: TextareaH
 }
 
 export function Select({ tone = "dark", error, className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement> & { tone?: "dark" | "paper"; error?: boolean }) {
-  const id = useId();
+  const generatedId = useId();
   return (
     <span className="relative block">
-      <select id={id} className={cn(fieldCls(tone, error ? "e" : undefined), "appearance-none pr-10 cursor-pointer", className)} {...rest}>
+      <select id={rest.id ?? generatedId} className={cn(fieldCls(tone, error ? "e" : undefined), "appearance-none pr-10 cursor-pointer", className)} {...rest}>
         {children}
       </select>
       <IconChevron size={14} className={cn("absolute right-4 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none", tone === "dark" ? "text-ink-300" : "text-ink-400")} />
