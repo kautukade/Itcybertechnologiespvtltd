@@ -65,7 +65,6 @@ function AdminFallback() {
   );
 }
 
-/** Generic error boundary — branded, honest, never cryptic. */
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
   static getDerivedStateFromError() {
@@ -92,7 +91,6 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
-/** Per-route SEO: unique title, description, canonical, OG/Twitter, robots. */
 const META: Record<string, [string, string]> = {
   "/": ["ITCYBER — AI, Custom Software, Web & App Development", "ITCYBER builds AI systems, custom software, business websites, web applications, mobile & PWA apps, automation and integrations — one engineering team, one connected digital system."],
   "/services": ["Services — AI, Software, Web, Apps & Automation | ITCYBER", "Five engineering capabilities: AI & intelligent systems, custom software, web products, mobile & PWA applications, and automation & integrations — delivered as one connected system."],
@@ -103,7 +101,7 @@ const META: Record<string, [string, string]> = {
   "/app-development": ["Mobile App & PWA Development | ITCYBER", "Cross-platform mobile applications and progressive web apps: customer, employee and operations apps with AI features, offline sync and secure backends."],
   "/solutions": ["Industry Solutions — Real Estate, Healthcare, Education & More | ITCYBER", "AI and automation playbooks for real estate, healthcare, education, e-commerce, agencies, professional services, startups and SMEs."],
   "/work": ["Work — Reference Architectures & Case Studies | ITCYBER", "How ITCYBER systems are architected: reference architectures with challenge, solution architecture and integrations."],
-  "/about": ["About ITCYber — Practical AI Systems for Real Businesses", "ITCYBER Technologies Pvt Ltd: business-first AI engineering. Our story, beliefs, mission and delivery method."],
+  "/about": ["About ITCYBER — Practical AI Systems for Real Businesses", "ITCYBER Technologies Pvt Ltd: business-first AI engineering. Our story, beliefs, mission and delivery method."],
   "/careers": ["Careers at ITCYBER — AI Automation & Engineering Roles", "Join ITCYBER: open roles in AI automation engineering, full-stack development, solutions architecture and business development."],
   "/contact": ["Contact ITCYBER — Discuss Your Website, App, Software or AI Project", "Tell us what you want to build. Free consultation and a 2-minute project assessment for websites, web apps, custom software, mobile apps, AI systems and automation."],
   "/privacy-policy": ["Privacy Policy | ITCYBER", "How ITCYBER Technologies collects, uses and protects your data."],
@@ -129,7 +127,6 @@ function MetaBridge() {
   return null;
 }
 
-/** Fast page transitions keyed on route. */
 function PageShell() {
   const location = useLocation();
   const reduce = useReducedMotion();
@@ -193,9 +190,11 @@ export default function App() {
           <Route
             path="/itcyberadmin"
             element={
-              <Suspense fallback={<AdminFallback />}>
-                <AdminLayout />
-              </Suspense>
+              <Guard resource="dashboard">
+                <Suspense fallback={<AdminFallback />}>
+                  <AdminLayout />
+                </Suspense>
+              </Guard>
             }
           >
             <Route index element={<Guard resource="dashboard"><Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense></Guard>} />
@@ -217,7 +216,7 @@ export default function App() {
             <Route path="users" element={<Guard resource="users"><Suspense fallback={<AdminFallback />}><AdminUsers /></Suspense></Guard>} />
             <Route path="audit-logs" element={<Guard resource="audit"><Suspense fallback={<AdminFallback />}><AdminAudit /></Suspense></Guard>} />
             <Route path="legal" element={<Guard resource="settings"><Suspense fallback={<AdminFallback />}><AdminLegal /></Suspense></Guard>} />
-            <Route path="*" element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
+            <Route path="*" element={<Guard resource="dashboard"><Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense></Guard>} />
           </Route>
           <Route path="/*" element={<PageShell />} />
         </Routes>

@@ -13,6 +13,13 @@ const MAX_BYTES = 10 * 1024 * 1024;
 
 const isImage = (t: string) => t.startsWith("image/");
 
+function validateMedia(file: File): string | null {
+  if (!OK_TYPES.includes(file.type)) return "Allowed: JPG, PNG, WEBP, AVIF, SVG, MP4";
+  if (file.size > MAX_BYTES) return "Files must be 10 MB or smaller";
+  if (file.size === 0) return "The selected file is empty";
+  return null;
+}
+
 export default function Media() {
   const { rows, loading, error, refresh } = useAdminTable("media_library", "created_at");
   const { profile } = useAuth();
@@ -24,12 +31,9 @@ export default function Media() {
 
   const upload = async (file: File) => {
     if (!db) return;
-    if (!OK_TYPES.includes(file.type)) {
-      toast("Allowed: JPG, PNG, WEBP, AVIF, SVG, MP4", "err");
-      return;
-    }
-    if (file.size > MAX_BYTES) {
-      toast("Files must be 10 MB or smaller", "err");
+    const validation = validateMedia(file);
+    if (validation) {
+      toast(validation, "err");
       return;
     }
     setUploading(true);
@@ -51,11 +55,14 @@ export default function Media() {
       folder: "general",
       uploaded_by: profile?.id ?? null,
     });
-    setUploading(false);
     if (rowErr) {
+      /* Avoid orphaned public objects when the metadata insert fails. */
+      await db.storage.from("site-media").remove([path]);
+      setUploading(false);
       toast(rowErr.message, "err");
       return;
     }
+    setUploading(false);
     await logActivity("media uploaded", "media_library", path);
     toast("Uploaded");
     refresh();
@@ -76,7 +83,11 @@ export default function Media() {
 
   const remove = async () => {
     if (!db || !deleting) return;
-    await db.storage.from("site-media").remove([deleting.storage_path]);
+    const { error: storageError } = await db.storage.from("site-media").remove([deleting.storage_path]);
+    if (storageError) {
+      toast(storageError.message, "err");
+      return;
+    }
     const { error: e } = await db.from("media_library").delete().eq("id", deleting.id);
     if (e) {
       toast(e.message, "err");
@@ -90,15 +101,31 @@ export default function Media() {
 
   const replace = async (file: File) => {
     if (!db || !selected) return;
+    const validation = validateMedia(file);
+    if (validation) {
+      toast(validation, "err");
+      return;
+    }
     setUploading(true);
     const { error: e } = await db.storage.from("site-media").upload(selected.storage_path, file, { contentType: file.type, upsert: true });
-    setUploading(false);
     if (e) {
+      setUploading(false);
       toast(e.message, "err");
       return;
     }
+    const { error: rowError } = await db.from("media_library").update({
+      name: file.name,
+      file_type: file.type,
+    }).eq("id", selected.id);
+    setUploading(false);
+    if (rowError) {
+      toast(`File replaced, but metadata update failed: ${rowError.message}`, "err");
+      return;
+    }
+    await logActivity("media replaced", "media_library", selected.id);
     toast("File replaced — same URL");
     setSelected(null);
+    refresh();
   };
 
   if (error) return <ErrorState message={error} onRetry={refresh} />;
@@ -110,7 +137,7 @@ export default function Media() {
         desc="Site images and video, stored in the public site-media bucket."
         actions={
           <>
-            <input ref={fileRef} type="file" accept={OK_TYPES.join(",")} className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} />
+            <input ref={fileRef} type="file" accept={OK_TYPES.join(",")} className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
             <AButton loading={uploading} onClick={() => fileRef.current?.click()}>Upload file</AButton>
           </>
         }
@@ -167,7 +194,7 @@ export default function Media() {
                   <AInput readOnly value={selected.public_url} onFocus={(e) => e.target.select()} />
                   <AButton
                     variant="ghost"
-                    onClick={() => { navigator.clipboard.writeText(selected.public_url).then(() => toast("URL copied")); }}
+                    onClick={() => { void navigator.clipboard.writeText(selected.public_url).then(() => toast("URL copied")); }}
                   >
                     Copy
                   </AButton>
@@ -181,7 +208,7 @@ export default function Media() {
             </div>
             <div className="mt-4">
               <FieldRow label="Replace file" hint="Keeps the same URL — useful for fixing an asset without updating references.">
-                <input type="file" accept={OK_TYPES.join(",")} className="block text-[0.8rem] text-slate-500 file:mr-3 file:h-8 file:px-3 file:rounded-md file:border file:border-slate-300 file:bg-white file:text-slate-700 file:text-[0.78rem] file:cursor-pointer hover:file:bg-slate-100" onChange={(e) => { const f = e.target.files?.[0]; if (f) replace(f); }} />
+                <input type="file" accept={OK_TYPES.join(",")} className="block text-[0.8rem] text-slate-500 file:mr-3 file:h-8 file:px-3 file:rounded-md file:border file:border-slate-300 file:bg-white file:text-slate-700 file:text-[0.78rem] file:cursor-pointer hover:file:bg-slate-100" onChange={(e) => { const f = e.target.files?.[0]; if (f) void replace(f); e.target.value = ""; }} />
               </FieldRow>
             </div>
             <div className="flex gap-2 mt-7 pt-5 border-t border-slate-200">

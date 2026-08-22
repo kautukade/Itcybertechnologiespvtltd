@@ -1,17 +1,18 @@
 // ITCYBER — submit-contact Edge Function
 // Validates the public contact/project-brief form and stores it in
 // `contact_leads` via the SERVICE ROLE. Fails closed if the service role
-// key is not configured — it never falls back to the anon key for
-// privileged inserts.
+// key is not configured — it never falls back to the anon key.
 //
 // Deploy:  supabase functions deploy submit-contact --no-verify-jwt
 // Secrets: SUPABASE_SERVICE_ROLE_KEY (set automatically), ALLOWED_ORIGINS
-//          (optional, comma-separated extra origins for previews)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-/* ── CORS: explicit allow-list. No wildcards, no blind reflection. ── */
-const DEFAULT_ORIGINS = ["https://www.itcyber.in", "https://itcyber.in"];
+const DEFAULT_ORIGINS = [
+  "https://www.itcyber.in",
+  "https://itcyber.in",
+  "https://itcybertechnologiespvtltd.netlify.app",
+];
 const ALLOWED_ORIGINS = [
   ...new Set([
     ...DEFAULT_ORIGINS,
@@ -39,7 +40,6 @@ const json = (body: unknown, status = 200, origin: string | null = null) =>
     headers: { ...corsFor(origin), "Content-Type": "application/json" },
   });
 
-/* ── validation ── */
 const ALLOWED: Record<string, number> = {
   full_name: 120, company: 160, email: 254, phone: 30, website: 250,
   industry: 80, company_size: 40, automation_interest: 80, existing_tools: 400,
@@ -60,15 +60,19 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsFor(reqOrigin) });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, reqOrigin);
 
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > 32_768) {
+    return json({ error: "Request is too large" }, 413, reqOrigin);
+  }
+
   let raw: Record<string, unknown>;
   try {
     raw = await req.json();
   } catch {
     return json({ error: "Invalid JSON body" }, 400, reqOrigin);
   }
-  if (typeof raw !== "object" || raw === null) return json({ error: "Invalid payload" }, 400, reqOrigin);
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return json({ error: "Invalid payload" }, 400, reqOrigin);
 
-  // anti-spam: honeypot and submission-time check
   if (raw.referral_link) return json({ ok: true }, 200, reqOrigin);
   const elapsed = Number(raw.elapsed_ms);
   if (Number.isFinite(elapsed) && elapsed < 2500) return json({ error: "Submission rejected" }, 429, reqOrigin);
@@ -84,9 +88,9 @@ Deno.serve(async (req) => {
   const email = data.email;
   if (!email || !EMAIL_RE.test(email)) return json({ error: "A valid email is required" }, 422, reqOrigin);
   if (!data.full_name) return json({ error: "Full name is required" }, 422, reqOrigin);
+  if (!data.message) return json({ error: "A short project description is required" }, 422, reqOrigin);
   if (data.phone && !PHONE_RE.test(data.phone)) return json({ error: "Phone number looks invalid" }, 422, reqOrigin);
 
-  // Fail closed: privileged inserts require the service role. No anon fallback.
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const url = Deno.env.get("SUPABASE_URL");
   if (!serviceKey || !url) {
@@ -95,13 +99,16 @@ Deno.serve(async (req) => {
   }
   const admin = createClient(url, serviceKey);
 
-  // simple per-email rate limit (5 / hour)
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { count } = await admin
+  const { count, error: rateError } = await admin
     .from("contact_leads")
     .select("id", { count: "exact", head: true })
     .eq("email", email)
     .gte("created_at", hourAgo);
+  if (rateError) {
+    console.error("contact rate-limit lookup failed", rateError.message);
+    return json({ error: "We couldn't submit your request. Please try again." }, 500, reqOrigin);
+  }
   if ((count ?? 0) >= 5) return json({ error: "Too many submissions — please try again later." }, 429, reqOrigin);
 
   const { error } = await admin.from("contact_leads").insert({

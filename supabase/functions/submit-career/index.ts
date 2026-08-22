@@ -12,8 +12,11 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-/* ── CORS: explicit allow-list. No wildcards, no blind reflection. ── */
-const DEFAULT_ORIGINS = ["https://www.itcyber.in", "https://itcyber.in"];
+const DEFAULT_ORIGINS = [
+  "https://www.itcyber.in",
+  "https://itcyber.in",
+  "https://itcybertechnologiespvtltd.netlify.app",
+];
 const ALLOWED_ORIGINS = [
   ...new Set([
     ...DEFAULT_ORIGINS,
@@ -41,7 +44,6 @@ const json = (body: unknown, status = 200, origin: string | null = null) =>
     headers: { ...corsFor(origin), "Content-Type": "application/json" },
   });
 
-/* ── validation ── */
 const ALLOWED: Record<string, number> = {
   job_id: 64, name: 120, email: 254, phone: 30, location: 120,
   experience: 200, linkedin_url: 250, portfolio_url: 250,
@@ -52,7 +54,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_RE = /^[+\d][\d\s\-()]{7,17}$/;
 const URL_RE = /^https?:\/\/[^\s]+$/i;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Mirrors the storage policy in 0003_security_hardening.sql exactly.
 const RESUME_PATH_RE =
   /^pending\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|doc|docx)$/;
 
@@ -67,13 +68,18 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsFor(reqOrigin) });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, reqOrigin);
 
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > 32_768) {
+    return json({ error: "Request is too large" }, 413, reqOrigin);
+  }
+
   let raw: Record<string, unknown>;
   try {
     raw = await req.json();
   } catch {
     return json({ error: "Invalid JSON body" }, 400, reqOrigin);
   }
-  if (typeof raw !== "object" || raw === null) return json({ error: "Invalid payload" }, 400, reqOrigin);
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return json({ error: "Invalid payload" }, 400, reqOrigin);
 
   if (raw.referral_link) return json({ ok: true }, 200, reqOrigin);
   const elapsed = Number(raw.elapsed_ms);
@@ -91,16 +97,9 @@ Deno.serve(async (req) => {
   if (data.phone && !PHONE_RE.test(data.phone)) return json({ error: "Phone number looks invalid" }, 422, reqOrigin);
   if (data.linkedin_url && !URL_RE.test(data.linkedin_url)) return json({ error: "LinkedIn URL looks invalid" }, 422, reqOrigin);
   if (data.portfolio_url && !URL_RE.test(data.portfolio_url)) return json({ error: "Portfolio URL looks invalid" }, 422, reqOrigin);
-
-  // Resume reference must point at the private bucket's pending/ folder,
-  // with a generated UUID filename and an allowed extension. Rejects
-  // traversal ('..' / extra segments) and arbitrary paths.
-  if (data.resume_path && !RESUME_PATH_RE.test(data.resume_path)) {
-    return json({ error: "Invalid resume reference" }, 422, reqOrigin);
-  }
+  if (data.resume_path && !RESUME_PATH_RE.test(data.resume_path)) return json({ error: "Invalid resume reference" }, 422, reqOrigin);
   if (data.job_id && !UUID_RE.test(data.job_id)) return json({ error: "Invalid job reference" }, 422, reqOrigin);
 
-  // Fail closed: privileged inserts require the service role. No anon fallback.
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const url = Deno.env.get("SUPABASE_URL");
   if (!serviceKey || !url) {
@@ -109,13 +108,48 @@ Deno.serve(async (req) => {
   }
   const admin = createClient(url, serviceKey);
 
+  const cleanupResume = async () => {
+    if (!data.resume_path) return;
+    const { error } = await admin.storage.from("career-resumes").remove([data.resume_path]);
+    if (error) console.error("career resume cleanup failed", error.message);
+  };
+
+  /* A syntactically valid UUID is not enough: never accept applications for a
+     draft, unpublished or explicitly closed role. General applications with no
+     job_id remain supported. */
+  if (data.job_id) {
+    const { data: job, error: jobError } = await admin
+      .from("jobs")
+      .select("id,published,applications_open")
+      .eq("id", data.job_id)
+      .maybeSingle();
+
+    if (jobError) {
+      console.error("career job lookup failed", jobError.message);
+      await cleanupResume();
+      return json({ error: "We couldn't verify this role. Please try again." }, 500, reqOrigin);
+    }
+    if (!job || !job.published || !job.applications_open) {
+      await cleanupResume();
+      return json({ error: "This role is no longer accepting applications." }, 422, reqOrigin);
+    }
+  }
+
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { count } = await admin
+  const { count, error: rateError } = await admin
     .from("career_applications")
     .select("id", { count: "exact", head: true })
     .eq("email", email)
     .gte("created_at", hourAgo);
-  if ((count ?? 0) >= 5) return json({ error: "Too many submissions — please try again later." }, 429, reqOrigin);
+  if (rateError) {
+    console.error("career rate-limit lookup failed", rateError.message);
+    await cleanupResume();
+    return json({ error: "We couldn't submit your application. Please try again." }, 500, reqOrigin);
+  }
+  if ((count ?? 0) >= 5) {
+    await cleanupResume();
+    return json({ error: "Too many submissions — please try again later." }, 429, reqOrigin);
+  }
 
   const { error } = await admin.from("career_applications").insert({
     job_id: data.job_id, name: data.name, email, phone: data.phone,
@@ -126,6 +160,7 @@ Deno.serve(async (req) => {
 
   if (error) {
     console.error("career insert failed", error.message);
+    await cleanupResume();
     return json({ error: "We couldn't submit your application. Please try again." }, 500, reqOrigin);
   }
   return json({ ok: true }, 200, reqOrigin);
