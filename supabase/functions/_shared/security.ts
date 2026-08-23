@@ -3,6 +3,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.112.3";
 const DEFAULT_ORIGINS = [
   "https://www.itcyber.in",
   "https://itcyber.in",
+  "https://itcybertechnologies.netlify.app",
   "https://itcybertechnologiespvtltd.netlify.app",
 ];
 
