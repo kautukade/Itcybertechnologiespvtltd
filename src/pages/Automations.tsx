@@ -40,6 +40,22 @@ function strings(value: Json): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0) : [];
 }
 
+function workflowSteps(value: Json): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (typeof entry === "string") {
+      const text = entry.trim();
+      return text ? [text] : [];
+    }
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const step = entry as Record<string, Json | undefined>;
+    const parts = [step.node, step.action, step.detail]
+      .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+      .map((part) => part.trim());
+    return parts.length > 0 ? [parts.join(" — ")] : [];
+  });
+}
+
 type LibraryItem = {
   key: string;
   name: string;
@@ -54,13 +70,13 @@ export default function Automations() {
   const { data: liveRows, source } = useCollection("automations", [] as AutomationRow[]);
 
   const library = useMemo<LibraryItem[]>(() => {
-    if (source === "live" && liveRows.length > 0) {
+    if (source === "live") {
       return liveRows.map((row) => ({
         key: row.id,
         name: row.name,
         blurb: row.description || "Custom workflow designed around your systems, rules and approval boundaries.",
         category: CMS_CAT[row.category.toLowerCase()] ?? "Back Office",
-        workflow: strings(row.workflow_json),
+        workflow: workflowSteps(row.workflow_json),
         integrations: strings(row.integrations_json),
       }));
     }
@@ -106,9 +122,17 @@ export default function Automations() {
         <div className="absolute inset-0 grid-bg opacity-40" aria-hidden />
         <div className="relative wrap">
           <div className="flex flex-wrap items-end justify-between gap-4"><SectionHead eyebrow="automation library" title={<>The workflows businesses <span className="text-brand-400">ask for first.</span></>} /><Reveal delay={0.1}><Tabs tabs={cats.map((c) => ({ id: c, label: c }))} active={cat} onChange={setCat} /></Reveal></div>
-          <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filtered.map((l, i) => <Reveal key={l.key} delay={i * 0.03}><div className="group relative h-full bg-ink-850/80 hairline clip-corner p-5 transition-all duration-400 hover:-translate-y-1 hover:bg-ink-800"><span className="absolute top-0 left-0 w-0 h-[2px] bg-gradient-to-r from-brand-500 to-cyan-ic group-hover:w-full transition-all duration-500" aria-hidden /><p className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-cyan-ic">{l.category}</p><h3 className="font-display font-semibold text-white text-[1.05rem] mt-1.5 group-hover:text-cyan-ic transition-colors">{l.name}</h3><p className="text-[0.82rem] text-ink-300 mt-1.5 leading-relaxed">{l.blurb}</p>{l.workflow.length > 0 && <p className="mt-3 text-[0.72rem] text-ink-400">Flow: {l.workflow.slice(0, 4).join(" → ")}</p>}{l.integrations.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{l.integrations.slice(0, 5).map((x) => <span key={x} className="font-mono text-[0.6rem] px-2 py-1 hairline text-ink-300">{x}</span>)}</div>}</div></Reveal>)}
-          </div>
+          {filtered.length > 0 ? (
+            <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filtered.map((l, i) => <Reveal key={l.key} delay={i * 0.03}><div className="group relative h-full bg-ink-850/80 hairline clip-corner p-5 transition-all duration-400 hover:-translate-y-1 hover:bg-ink-800"><span className="absolute top-0 left-0 w-0 h-[2px] bg-gradient-to-r from-brand-500 to-cyan-ic group-hover:w-full transition-all duration-500" aria-hidden /><p className="font-mono text-[0.6rem] uppercase tracking-[0.14em] text-cyan-ic">{l.category}</p><h3 className="font-display font-semibold text-white text-[1.05rem] mt-1.5 group-hover:text-cyan-ic transition-colors">{l.name}</h3><p className="text-[0.82rem] text-ink-300 mt-1.5 leading-relaxed">{l.blurb}</p>{l.workflow.length > 0 && <p className="mt-3 text-[0.72rem] text-ink-400">Flow: {l.workflow.slice(0, 4).join(" → ")}</p>}{l.integrations.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{l.integrations.slice(0, 5).map((x) => <span key={x} className="font-mono text-[0.6rem] px-2 py-1 hairline text-ink-300">{x}</span>)}</div>}</div></Reveal>)}
+            </div>
+          ) : (
+            <div className="mt-10 hairline bg-ink-850/70 clip-corner p-7 text-ink-300">
+              <p className="font-display font-semibold text-white">No published automation workflows yet.</p>
+              <p className="mt-2 text-[0.86rem] leading-relaxed">The library is intentionally empty because the CMS currently has no published entries. Describe your workflow and we can scope it directly.</p>
+              <Button to="/contact" variant="ghost" size="sm" className="mt-4">Describe your workflow</Button>
+            </div>
+          )}
           <Reveal delay={0.1}><p className="mt-6 text-[0.86rem] text-ink-300">Don't see your workflow? Most of what we build is custom. <Button to="/contact" variant="ghost" size="sm" className="ml-2">Describe it to us</Button></p></Reveal>
         </div>
       </Section>
