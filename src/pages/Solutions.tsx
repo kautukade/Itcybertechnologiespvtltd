@@ -10,7 +10,7 @@ import type { IndustryRow } from "../types/db";
 import NotFound from "./NotFound";
 import { usePageMeta } from "../lib/seo";
 
-type PublicIndustry = Industry & { seoTitle?: string; seoDescription?: string };
+type PublicIndustry = Industry & { hero?: string; seoTitle?: string; seoDescription?: string };
 
 /** Live published industries from the CMS, with the bundled data as fallback.
  *  A newly published industry renders at /solutions/<slug> without code changes. */
@@ -24,7 +24,8 @@ function useIndustries(): PublicIndustry[] {
         return {
           slug: row.slug,
           name: row.name,
-          short: row.short_description ?? "",
+          short: row.short_description ?? row.hero_description ?? "",
+          hero: row.hero_description ?? row.short_description ?? "",
           challenges: (row.challenges_json as string[]) ?? [],
           opportunities: (row.opportunities_json as string[]) ?? [],
           automations: (row.automations_json as string[]) ?? [],
@@ -49,7 +50,7 @@ export function IndustryPage() {
   const pagePath = `/solutions/${slug ?? ""}`;
   usePageMeta({
     title: ind?.seoTitle ?? (ind ? `${ind.name} — AI & Automation Solutions | ITCYBER` : "Industry Solution Not Found | ITCYBER"),
-    description: ind?.seoDescription ?? ind?.short ?? "Industry-specific AI and automation playbook from ITCYBER.",
+    description: ind?.seoDescription ?? ind?.hero ?? ind?.short ?? "Industry-specific AI and automation playbook from ITCYBER.",
     path: pagePath,
     robots: ind ? undefined : "noindex, nofollow",
   });
@@ -74,7 +75,7 @@ export function IndustryPage() {
             AI & automation for <span className="text-brand-400">{ind.name}.</span>
           </h1>
           <Reveal delay={0.15}>
-            <p className="mt-4 max-w-2xl text-[clamp(1rem,1.5vw,1.15rem)] text-ink-200 leading-relaxed">{ind.short}</p>
+            <p className="mt-4 max-w-2xl text-[clamp(1rem,1.5vw,1.15rem)] text-ink-200 leading-relaxed">{ind.hero ?? ind.short}</p>
           </Reveal>
           <Reveal delay={0.25}>
             <div className="mt-7 flex flex-wrap gap-3">

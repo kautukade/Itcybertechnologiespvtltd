@@ -79,7 +79,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
             <p className="eyebrow text-rose-ic">system exception</p>
             <h1 className="font-display font-bold text-white text-2xl mt-3 tracking-tight">This run stopped safely.</h1>
             <p className="text-ink-300 mt-3 text-sm leading-relaxed">
-              Something unexpected broke on this page — no data was lost. Reload usually fixes it;
+              Something unexpected broke on this page. Any unsaved changes may need to be entered again. Reload usually fixes it;
               if it persists{site.contact.email ? `, email us at ${site.contact.email}` : ", reach out via the contact page"}.
             </p>
             <button onClick={() => window.location.reload()} className="mt-6 bg-brand-500 text-white font-display font-semibold px-6 h-11 clip-corner hover:bg-brand-400 transition-colors">
