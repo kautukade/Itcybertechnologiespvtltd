@@ -21,8 +21,8 @@ function safeSlug(value) {
 }
 
 async function publishedSlugs(table) {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const publicKey = process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const publicKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !publicKey) return [];
   const endpoint = new URL(`/rest/v1/${table}`, supabaseUrl);
   endpoint.searchParams.set("published", "eq.true");
