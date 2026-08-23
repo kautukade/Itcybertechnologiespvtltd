@@ -128,7 +128,7 @@ export const CMS_CONFIGS: Record<string, CmsConfig> = {
       { key: "slug", label: "Slug", type: "text" },
       { key: "kind", label: "Kind", type: "select", options: ["playbook", "guide", "checklist", "article"] },
       { key: "summary", label: "Summary", type: "textarea", span: true },
-      { key: "body", label: "Body (markdown)", type: "textarea", span: true },
+      { key: "body", label: "Body (plain text)", type: "textarea", span: true, hint: "Displayed as safe paragraphs; Markdown syntax is not rendered." },
       { key: "published", label: "Published", type: "check" },
       { key: "sort_order", label: "Sort order", type: "number" },
     ],
@@ -229,7 +229,11 @@ export function CmsManager({ configKey }: { configKey: string }) {
   const reorder = async (row: Record<string, unknown>, delta: number) => {
     if (!db) return;
     const next = Number(row.sort_order ?? 0) + delta;
-    await db.from(cfg.table).update({ sort_order: next }).eq("id", row.id);
+    const { error: e } = await db.from(cfg.table).update({ sort_order: next }).eq("id", row.id);
+    if (e) {
+      toast(e.message, "err");
+      return;
+    }
     refresh();
   };
 
