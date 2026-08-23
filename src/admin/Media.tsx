@@ -96,20 +96,27 @@ export default function Media() {
 
   const remove = async () => {
     if (!db || !deleting) return;
+
+    // Remove the library row first so a storage failure cannot leave public metadata
+    // pointing at an object that no longer exists. A failed storage cleanup leaves an
+    // orphaned object, which is safer and can be cleaned up later.
+    const { error: rowError } = await db.from("media_library").delete().eq("id", deleting.id);
+    if (rowError) {
+      toast(rowError.message, "err");
+      return;
+    }
+
     const { error: storageError } = await db.storage.from("site-media").remove([deleting.storage_path]);
-    if (storageError) {
-      toast(storageError.message, "err");
-      return;
-    }
-    const { error: e } = await db.from("media_library").delete().eq("id", deleting.id);
-    if (e) {
-      toast(e.message, "err");
-      return;
-    }
     await logActivity("media deleted", "media_library", deleting.id);
-    toast("Deleted");
     setDeleting(null);
+    setSelected(null);
     refresh();
+
+    if (storageError) {
+      toast(`Library entry deleted, but storage cleanup failed: ${storageError.message}`, "err");
+      return;
+    }
+    toast("Deleted");
   };
 
   const replace = async (file: File) => {
@@ -240,7 +247,7 @@ export default function Media() {
       <AConfirm
         open={!!deleting}
         title="Delete this file?"
-        message="The file is removed from storage and from the library. Pages referencing its URL will show a broken image."
+        message="The library entry is removed first, then the storage object is cleaned up. Pages referencing its URL may show a broken image after deletion."
         onCancel={() => setDeleting(null)}
         onConfirm={remove}
       />
