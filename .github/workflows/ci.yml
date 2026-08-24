@@ -32,6 +32,12 @@ jobs:
       - name: Validate Netlify sitemap function
         run: node --check netlify/functions/sitemap.mjs
 
+      - name: Validate Netlify environment preflight
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder-public-key
+        run: node scripts/validate-netlify-env.mjs
+
       - name: Typecheck
         run: npm run typecheck
 
